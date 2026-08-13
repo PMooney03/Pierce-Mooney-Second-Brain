@@ -51,6 +51,13 @@ documents/**
 # Local demo media — keep bulky recordings out of git
 Images/*
 !Images/CharlesGPTDemo.mp4
+!Images/CharlesGPTHomepage.png
+!Images/MemoryStorage.png
+!Images/SearchFilePage.png
+!Images/LibraryPage.png
+!Images/ModulesPage.png
+!Images/ProjectsPage.png
+!Images/KnowledgePage.png
 *.mp4
 !Images/CharlesGPTDemo.mp4
 *.mov

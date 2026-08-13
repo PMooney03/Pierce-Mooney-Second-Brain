@@ -31,20 +31,51 @@ Typical walkthrough: ask something about coursework → watch the retrieval map 
 
 ---
 
-## Core features
+## Product tour
 
+Seven workspace pages. Screenshots below are from a local dark-mode run.
 
-| Surface                 | What it does                                                                              |
-| ----------------------- | ----------------------------------------------------------------------------------------- |
-| **Chat**                | Multi-mode grounded Q&A with a live neural search backdrop                                |
-| **Sources**             | Expandable evidence cards (file, location, chunk text)                                    |
-| **Search**              | Hybrid / keyword exploration without forcing an LLM answer                                |
-| **Library**             | Indexed document list + incremental ingest                                                |
-| **Memory**              | Explicit “remember that…” facts and learned preferences                                   |
-| **Projects**            | Browse real folders under `Projects/` with file preview                                   |
-| **Modules / Knowledge** | Year and module overview derived from the index                                           |
-| **Light tools**         | Weather, calculator, time, and web Instant Answer when the question is *not* archive work |
+### Chat
 
+Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. While retrieving, a live map shows years → modules → files. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework.
+
+![Chat page](Images/CharlesGPTHomepage.png)
+
+### Memory
+
+Bank of facts CharlesGPT has learned — explicit “remember that…” notes plus routes learned from prior chats. Manageable from Chat (`what do you remember`, `forget everything`).
+
+![Memory page](Images/MemoryStorage.png)
+
+### Search
+
+Hybrid / keyword / semantic retrieval **without** LLM generation — just ranked evidence chunks from your files. Useful when you want the source, not a rewritten answer.
+
+![Search page](Images/SearchFilePage.png)
+
+### Library
+
+Indexed documents with filters (filename, year, module, type) and **Run ingest** for incremental updates. Originals on disk are never modified.
+
+![Library page](Images/LibraryPage.png)
+
+### Modules
+
+Module cards derived from path metadata on indexed docs — year + document counts across the corpus.
+
+![Modules page](Images/ModulesPage.png)
+
+### Projects
+
+Portfolio folders under `Projects/`. Click in to browse structure and preview files (README, code, config) without leaving the app.
+
+![Projects page](Images/ProjectsPage.png)
+
+### Knowledge
+
+High-level profile: years, modules, and project folders linked to indexed evidence — a snapshot of what the system knows about your archive.
+
+![Knowledge page](Images/KnowledgePage.png)
 
 ---
 
