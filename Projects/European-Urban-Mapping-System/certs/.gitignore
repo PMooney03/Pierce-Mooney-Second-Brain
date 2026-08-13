@@ -1,0 +1,2 @@
+# Self-signed TLS certs — run scripts/generate-ssl-cert.bat to create
+*.pem

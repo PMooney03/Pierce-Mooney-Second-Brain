@@ -1,0 +1,331 @@
+{
+  "version": "1.0",
+  "description": "SME Infrastructure Recovery Configuration",
+  "last_updated": "{{ ansible_date_time.iso8601 }}",
+  "monitoring": {
+    "check_interval": 300,
+    "auto_recovery": true,
+    "notification_email": "admin@sme.local",
+    "alert_threshold": 3
+  },
+  "hosts": {
+    "fw-1": {
+      "ip": "192.168.56.3",
+      "type": "firewall",
+      "role": "primary_firewall",
+      "services": ["ufw", "iptables", "ssh", "networking"],
+      "recovery_priority": "high",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "fw-2": {
+      "ip": "192.168.56.2",
+      "type": "firewall",
+      "role": "secondary_firewall",
+      "services": ["ufw", "iptables", "ssh", "networking"],
+      "recovery_priority": "high",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "dc-1": {
+      "ip": "192.168.56.10",
+      "type": "domain_controller",
+      "role": "primary_dc",
+      "services": ["bind9", "slapd", "krb5-kdc", "squid", "ssh", "networking"],
+      "recovery_priority": "critical",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "dc-2": {
+      "ip": "192.168.56.11",
+      "type": "domain_controller",
+      "role": "secondary_dc",
+      "services": ["bind9", "slapd", "krb5-kdc", "squid", "ssh", "networking"],
+      "recovery_priority": "critical",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "filesrv-1": {
+      "ip": "192.168.56.20",
+      "type": "file_server",
+      "role": "primary_file_server",
+      "services": ["nfs-kernel-server", "samba", "glusterd", "ssh", "networking"],
+      "recovery_priority": "high",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "filesrv-2": {
+      "ip": "192.168.56.21",
+      "type": "file_server",
+      "role": "secondary_file_server",
+      "services": ["nfs-kernel-server", "samba", "glusterd", "ssh", "networking"],
+      "recovery_priority": "high",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "web-1": {
+      "ip": "192.168.56.30",
+      "type": "web_server",
+      "role": "primary_web_server",
+      "services": ["apache2", "nginx", "php-fpm", "ssh", "networking"],
+      "recovery_priority": "medium",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "web-2": {
+      "ip": "192.168.56.31",
+      "type": "web_server",
+      "role": "secondary_web_server",
+      "services": ["apache2", "nginx", "php-fpm", "ssh", "networking"],
+      "recovery_priority": "medium",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "monitor-1": {
+      "ip": "192.168.56.40",
+      "type": "monitoring",
+      "role": "monitoring_server",
+      "services": ["prometheus", "grafana-server", "node_exporter", "ssh", "networking"],
+      "recovery_priority": "medium",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "log-1": {
+      "ip": "192.168.56.41",
+      "type": "logging",
+      "role": "logging_server",
+      "services": ["rsyslog", "elasticsearch", "kibana", "ssh", "networking"],
+      "recovery_priority": "medium",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "mgmt-1": {
+      "ip": "192.168.56.50",
+      "type": "management",
+      "role": "primary_management",
+      "services": ["ansible", "ssh", "networking"],
+      "recovery_priority": "critical",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    },
+    "mgmt-2": {
+      "ip": "192.168.56.51",
+      "type": "management",
+      "role": "secondary_management",
+      "services": ["ansible", "ssh", "networking"],
+      "recovery_priority": "critical",
+      "backup_enabled": true,
+      "monitoring_enabled": true
+    }
+  },
+  "services": {
+    "ssh": {
+      "port": 22,
+      "check_command": "systemctl is-active ssh",
+      "restart_command": "systemctl restart ssh",
+      "recovery_timeout": 60
+    },
+    "networking": {
+      "port": null,
+      "check_command": "systemctl is-active networking",
+      "restart_command": "systemctl restart networking",
+      "recovery_timeout": 120
+    },
+    "ufw": {
+      "port": null,
+      "check_command": "systemctl is-active ufw",
+      "restart_command": "systemctl restart ufw",
+      "recovery_timeout": 30
+    },
+    "iptables": {
+      "port": null,
+      "check_command": "iptables -L",
+      "restart_command": "systemctl restart iptables",
+      "recovery_timeout": 30
+    },
+    "bind9": {
+      "port": 53,
+      "check_command": "systemctl is-active bind9",
+      "restart_command": "systemctl restart bind9",
+      "recovery_timeout": 60
+    },
+    "slapd": {
+      "port": 389,
+      "check_command": "systemctl is-active slapd",
+      "restart_command": "systemctl restart slapd",
+      "recovery_timeout": 90
+    },
+    "krb5-kdc": {
+      "port": 88,
+      "check_command": "systemctl is-active krb5-kdc",
+      "restart_command": "systemctl restart krb5-kdc",
+      "recovery_timeout": 60
+    },
+    "squid": {
+      "port": 3128,
+      "check_command": "systemctl is-active squid",
+      "restart_command": "systemctl restart squid",
+      "recovery_timeout": 60
+    },
+    "nfs-kernel-server": {
+      "port": 2049,
+      "check_command": "systemctl is-active nfs-kernel-server",
+      "restart_command": "systemctl restart nfs-kernel-server",
+      "recovery_timeout": 60
+    },
+    "samba": {
+      "port": 445,
+      "check_command": "systemctl is-active smbd",
+      "restart_command": "systemctl restart smbd nmbd",
+      "recovery_timeout": 60
+    },
+    "glusterd": {
+      "port": 24007,
+      "check_command": "systemctl is-active glusterd",
+      "restart_command": "systemctl restart glusterd",
+      "recovery_timeout": 90
+    },
+    "apache2": {
+      "port": 80,
+      "check_command": "systemctl is-active apache2",
+      "restart_command": "systemctl restart apache2",
+      "recovery_timeout": 60
+    },
+    "nginx": {
+      "port": 80,
+      "check_command": "systemctl is-active nginx",
+      "restart_command": "systemctl restart nginx",
+      "recovery_timeout": 60
+    },
+    "php-fpm": {
+      "port": null,
+      "check_command": "systemctl is-active php8.1-fpm",
+      "restart_command": "systemctl restart php8.1-fpm",
+      "recovery_timeout": 60
+    },
+    "prometheus": {
+      "port": 9090,
+      "check_command": "systemctl is-active prometheus",
+      "restart_command": "systemctl restart prometheus",
+      "recovery_timeout": 60
+    },
+    "grafana-server": {
+      "port": 3000,
+      "check_command": "systemctl is-active grafana-server",
+      "restart_command": "systemctl restart grafana-server",
+      "recovery_timeout": 60
+    },
+    "node_exporter": {
+      "port": 9100,
+      "check_command": "systemctl is-active node_exporter",
+      "restart_command": "systemctl restart node_exporter",
+      "recovery_timeout": 30
+    },
+    "rsyslog": {
+      "port": 514,
+      "check_command": "systemctl is-active rsyslog",
+      "restart_command": "systemctl restart rsyslog",
+      "recovery_timeout": 30
+    },
+    "elasticsearch": {
+      "port": 9200,
+      "check_command": "systemctl is-active elasticsearch",
+      "restart_command": "systemctl restart elasticsearch",
+      "recovery_timeout": 120
+    },
+    "kibana": {
+      "port": 5601,
+      "check_command": "systemctl is-active kibana",
+      "restart_command": "systemctl restart kibana",
+      "recovery_timeout": 60
+    }
+  },
+  "recovery_actions": {
+    "host_down": {
+      "description": "Host is completely unreachable",
+      "steps": [
+        "Attempt VM restart via Vagrant",
+        "Wait for VM to come up",
+        "Verify connectivity",
+        "Restart critical services"
+      ],
+      "timeout": 300,
+      "retry_count": 3
+    },
+    "ssh_issue": {
+      "description": "Host is reachable but SSH is down",
+      "steps": [
+        "Restart SSH service",
+        "Check SSH configuration",
+        "Verify SSH connectivity"
+      ],
+      "timeout": 120,
+      "retry_count": 2
+    },
+    "service_down": {
+      "description": "Host is up but specific services are down",
+      "steps": [
+        "Identify failed services",
+        "Restart failed services",
+        "Verify service health"
+      ],
+      "timeout": 180,
+      "retry_count": 2
+    },
+    "network_issue": {
+      "description": "Network connectivity problems",
+      "steps": [
+        "Check network interfaces",
+        "Restart networking service",
+        "Verify routing",
+        "Test connectivity"
+      ],
+      "timeout": 120,
+      "retry_count": 2
+    },
+    "backup_restore": {
+      "description": "Restore host from backup",
+      "steps": [
+        "Locate backup file",
+        "Copy backup to host",
+        "Extract and restore",
+        "Verify restoration"
+      ],
+      "timeout": 600,
+      "retry_count": 1
+    }
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "daily",
+    "retention_days": 30,
+    "backup_path": "/opt/sme/backups",
+    "include_directories": [
+      "/etc",
+      "/var/lib",
+      "/home",
+      "/opt"
+    ],
+    "exclude_patterns": [
+      "/tmp/*",
+      "/var/tmp/*",
+      "/var/log/*",
+      "/proc/*",
+      "/sys/*"
+    ]
+  },
+  "notifications": {
+    "email": {
+      "enabled": true,
+      "smtp_server": "localhost",
+      "smtp_port": 25,
+      "from_address": "sme-monitor@sme.local",
+      "to_addresses": ["admin@sme.local"]
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "headers": {}
+    }
+  }
+} 

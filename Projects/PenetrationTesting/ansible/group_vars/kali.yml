@@ -1,0 +1,27 @@
+---
+kali_hostname: kali-attacker
+kali_lab_ip: "192.168.56.10"
+kali_targets:
+  - name: ubuntu-target
+    ip: "192.168.56.20"
+    services: [ssh]
+  - name: windows-server
+    ip: "192.168.56.30"
+    services: [ssh, placeholder]
+  - name: dvwa
+    host: "{{ docker_host_ip }}"
+    port: "{{ dvwa_port }}"
+  - name: juice-shop
+    host: "{{ docker_host_ip }}"
+    port: "{{ juice_shop_port }}"
+
+kali_tooling_packages:
+  - nmap
+  - netcat-openbsd
+  - curl
+  - wget
+  - git
+  - python3-pip
+  - sshpass
+  - dirb
+  - whatweb

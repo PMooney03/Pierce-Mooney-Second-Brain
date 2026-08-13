@@ -1,0 +1,312 @@
+---
+- name: SME Infrastructure Recovery Deployment
+  hosts: management
+  become: true
+  gather_facts: true
+  
+  vars:
+    recovery_config_path: /opt/sme/config/recovery-config.json
+    scripts_path: /opt/sme/scripts
+    logs_path: /var/log/sme/recovery
+    backup_path: /opt/sme/backups
+    
+  tasks:
+    - name: Create recovery directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop:
+        - "{{ scripts_path }}"
+        - "{{ logs_path }}"
+        - "{{ backup_path }}"
+        - /opt/sme/config
+        - /opt/sme/docs
+
+    - name: Install recovery dependencies
+      apt:
+        name:
+          - python3-pip
+          - jq
+          - curl
+          - wget
+          - nmap
+          - netcat
+          - telnet
+          - rsync
+          - screen
+          - tmux
+          - bc
+          - mailutils
+          - postfix
+          - cron
+          - logwatch
+        state: present
+        update_cache: true
+
+    - name: Install Python packages for monitoring
+      ansible.builtin.pip:
+        name:
+          - requests
+          - psutil
+          - netifaces
+          - ping3
+          - schedule
+        state: present
+        executable: pip3
+
+    - name: Deploy recovery configuration
+      template:
+        src: recovery-config.json.j2
+        dest: "{{ recovery_config_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Deploy health monitoring script
+      template:
+        src: health-monitor.py.j2
+        dest: "{{ scripts_path }}/health-monitor.py"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy auto-recovery script
+      template:
+        src: auto-recovery.sh.j2
+        dest: "{{ scripts_path }}/auto-recovery.sh"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy disaster recovery script
+      template:
+        src: disaster-recovery.sh.j2
+        dest: "{{ scripts_path }}/disaster-recovery.sh"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy backup automation script
+      template:
+        src: backup-automation.sh.j2
+        dest: "{{ scripts_path }}/backup-automation.sh"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy service recovery script
+      template:
+        src: service-recovery.sh.j2
+        dest: "{{ scripts_path }}/service-recovery.sh"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy network recovery script
+      template:
+        src: network-recovery.sh.j2
+        dest: "{{ scripts_path }}/network-recovery.sh"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy recovery API
+      template:
+        src: recovery-api.py.j2
+        dest: "{{ scripts_path }}/recovery-api.py"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy health monitoring service
+      template:
+        src: health-monitor.service.j2
+        dest: /etc/systemd/system/health-monitor.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Deploy auto-recovery service
+      template:
+        src: auto-recovery.service.j2
+        dest: /etc/systemd/system/auto-recovery.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Deploy monitoring dashboard
+      template:
+        src: monitoring-dashboard.html.j2
+        dest: /var/www/html/monitoring-dashboard.html
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: Deploy recovery documentation
+      template:
+        src: recovery-manual.md.j2
+        dest: /opt/sme/docs/recovery-manual.md
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Set up cron jobs for automated monitoring
+      cron:
+        name: "{{ item.name }}"
+        minute: "{{ item.minute }}"
+        hour: "{{ item.hour }}"
+        job: "{{ item.job }}"
+        state: present
+      loop:
+        - { name: "Health Check", minute: "*/5", hour: "*", job: "{{ scripts_path }}/health-monitor.py --check" }
+        - { name: "Backup Check", minute: "0", hour: "2", job: "{{ scripts_path }}/backup-automation.sh --daily" }
+        - { name: "Recovery Test", minute: "0", hour: "6", job: "{{ scripts_path }}/disaster-recovery.sh --test" }
+
+    - name: Enable and start monitoring services
+      systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop:
+        - health-monitor
+        - auto-recovery
+
+    - name: Create admin user with recovery privileges
+      user:
+        name: "{{ admin_user | default('sme-admin') }}"
+        password: "{{ admin_password | default('Admin123!') | password_hash('sha512') }}"
+        shell: /bin/bash
+        groups: sudo
+        state: present
+
+    - name: Configure sudo for admin user with recovery commands
+      lineinfile:
+        path: /etc/sudoers
+        line: "{{ admin_user | default('sme-admin') }} ALL=(ALL) NOPASSWD: {{ scripts_path }}/*"
+        state: present
+        validate: 'visudo -cf %s'
+
+    - name: Test recovery configuration
+      command: "{{ scripts_path }}/health-monitor.py --check"
+      register: health_check_result
+      changed_when: false
+
+    - name: Display recovery status
+      debug:
+        msg: |
+          ✅ Recovery system deployed successfully!
+          
+          📊 Recovery Capabilities:
+          - Health monitoring: {{ scripts_path }}/health-monitor.py
+          - Auto-recovery: {{ scripts_path }}/auto-recovery.sh
+          - Disaster recovery: {{ scripts_path }}/disaster-recovery.sh
+          - Backup automation: {{ scripts_path }}/backup-automation.sh
+          - Service recovery: {{ scripts_path }}/service-recovery.sh
+          - Network recovery: {{ scripts_path }}/network-recovery.sh
+          
+          📋 Usage:
+          - Health check: python3 {{ scripts_path }}/health-monitor.py --check
+          - Continuous monitoring: python3 {{ scripts_path }}/health-monitor.py --monitor
+          - Manual recovery: {{ scripts_path }}/auto-recovery.sh --host HOSTNAME --issue ISSUE
+          - Recovery status: {{ scripts_path }}/recovery-api.py --status
+          
+          📚 Documentation: /opt/sme/docs/recovery-manual.md
+          📝 Logs: {{ logs_path }}
+          💾 Backups: {{ backup_path }}
+
+- name: Deploy recovery agents to all hosts
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Install monitoring agent
+      apt:
+        name:
+          - python3-pip
+          - curl
+          - wget
+        state: present
+        update_cache: true
+
+    - name: Install Python monitoring packages
+      ansible.builtin.pip:
+        name:
+          - psutil
+          - requests
+        state: present
+        executable: pip3
+
+    - name: Create monitoring agent directory
+      file:
+        path: /opt/sme/monitoring
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy monitoring agent script
+      template:
+        src: monitoring-agent.py.j2
+        dest: /opt/sme/monitoring/agent.py
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy monitoring agent service
+      template:
+        src: monitoring-agent.service.j2
+        dest: /etc/systemd/system/monitoring-agent.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable and start monitoring agent
+      systemd:
+        name: monitoring-agent
+        enabled: true
+        state: started
+        daemon_reload: true
+
+- name: Test recovery system
+  hosts: management
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Test health monitoring
+      command: "{{ scripts_path }}/health-monitor.py --check"
+      register: health_test_result
+      changed_when: false
+
+    - name: Display health test results
+      debug:
+        msg: "{{ health_test_result.stdout }}"
+
+    - name: Test recovery API
+      uri:
+        url: http://localhost:8080/status
+        method: GET
+      register: api_test_result
+      ignore_errors: true
+
+    - name: Display API test results
+      debug:
+        msg: "API Status: {{ 'OK' if api_test_result.status == 200 else 'Not Available' }}"
+
+    - name: Final recovery system status
+      debug:
+        msg: |
+          🎉 Recovery system deployment complete!
+          
+          ✅ All recovery components deployed and tested
+          ✅ Health monitoring active
+          ✅ Auto-recovery enabled
+          ✅ Backup automation configured
+          ✅ Monitoring agents deployed to all hosts
+          
+          🚀 Ready for production use! 

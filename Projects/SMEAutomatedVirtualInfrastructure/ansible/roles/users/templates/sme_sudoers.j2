@@ -1,0 +1,5 @@
+# Managed by Ansible (roles/users). Admin users get full sudo.
+{% for u in sme_users | default([]) %}
+{% if u.role == 'admin' %}{{ u.username }} ALL=(ALL) NOPASSWD:ALL
+{% endif %}
+{% endfor %}

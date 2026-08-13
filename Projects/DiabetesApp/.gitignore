@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build
+client/dist/
+
+# Database (local data - keep on your PC)
+server/diabetes.db
+server/diabetes-dev.db
+server/backups/
+server/backups-dev/
+
+# Env secrets
+server/.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# PWA / raw screenshot dumps (curated copies live in docs/screenshots/)
+HealthTrackerAppImages/
+HealthTrackerApp/
+dev-dist/
+
+

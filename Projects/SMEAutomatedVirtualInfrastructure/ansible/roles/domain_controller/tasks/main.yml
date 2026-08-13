@@ -1,0 +1,385 @@
+---
+# Domain Controller role tasks
+
+- name: Install Samba and required packages
+  apt:
+    name:
+      - samba
+      - samba-common
+      - samba-vfs-modules
+      - acl
+      - attr
+      - winbind
+      - krb5-config
+      - libpam-winbind
+      - libnss-winbind
+      - squid
+      - squid-common
+      - apache2
+      - apache2-utils
+    state: present
+
+- name: Stop Samba services before configuration
+  service:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - smbd
+    - nmbd
+    - winbind
+
+- name: Stop AD DC service before configuration (if present)
+  service:
+    name: samba-ad-dc
+    state: stopped
+  failed_when: false
+
+- name: Stop services that conflict with Samba AD DC ports
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - slapd
+    - bind9
+    - named
+    - dnsmasq
+  failed_when: false
+
+- name: Disable UFW on domain controllers to avoid blocking AD/DC traffic
+  service:
+    name: ufw
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Disable systemd-resolved to prevent DNS port conflicts with Samba AD DC
+  service:
+    name: systemd-resolved
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Configure Samba for Active Directory
+  template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart smbd
+
+- name: Configure Kerberos
+  template:
+    src: krb5.conf.j2
+    dest: /etc/krb5.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure Squid proxy for gateway functionality
+  template:
+    src: squid.conf.j2
+    dest: /etc/squid/squid.conf
+    owner: proxy
+    group: proxy
+    mode: '0644'
+  notify: restart squid
+
+- name: Create Squid cache directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: proxy
+    group: proxy
+    mode: '0755'
+  loop:
+    - /var/spool/squid
+    - /var/log/squid
+
+- name: Check whether Squid cache is initialized
+  stat:
+    path: /var/spool/squid/00
+  register: squid_cache_initialized
+
+- name: Stop Squid before cache initialization
+  service:
+    name: squid
+    state: stopped
+  when: not squid_cache_initialized.stat.exists
+
+- name: Initialize Squid cache
+  shell: squid -z
+  args:
+    creates: /var/spool/squid/00
+  when: not squid_cache_initialized.stat.exists
+
+- name: Start Squid after cache initialization
+  service:
+    name: squid
+    state: started
+    enabled: true
+  when: not squid_cache_initialized.stat.exists
+
+- name: Configure network routing for gateway
+  template:
+    src: network-routing.sh.j2
+    dest: /usr/local/bin/network-routing
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure system for IP forwarding
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { name: "net.ipv4.ip_forward", value: "1" }
+    - { name: "net.ipv4.conf.all.forwarding", value: "1" }
+    - { name: "net.ipv4.conf.default.forwarding", value: "1" }
+
+- name: Configure iptables for gateway routing
+  template:
+    src: iptables-gateway.j2
+    dest: /etc/iptables/rules.v4
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create gateway monitoring script
+  template:
+    src: gateway-monitor.sh.j2
+    dest: /usr/local/bin/gateway-monitor
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Set up gateway monitoring service
+  template:
+    src: gateway-monitor.service.j2
+    dest: /etc/systemd/system/gateway-monitor.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable and start gateway monitoring
+  systemd:
+    name: gateway-monitor
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Provision domain (only on primary DC)
+  shell: |
+    samba-tool domain provision \
+      --server-role=dc \
+      --use-rfc2307 \
+      --dns-backend=SAMBA_INTERNAL \
+      --realm={{ samba_realm }} \
+      --domain={{ samba_domain }} \
+      --adminpass={{ domain_admin_password }}
+  args:
+    creates: /var/lib/samba/private/sam.ldb
+  when: dc_role == "PRIMARY"
+
+- name: Wait for primary DC LDAP and Kerberos to be reachable
+  wait_for:
+    host: "{{ hostvars[(groups['domain_controllers'] | first)].ansible_host | default('192.168.56.10') }}"
+    port: "{{ item }}"
+    timeout: 120
+    delay: 5
+  loop:
+    - 389
+    - 88
+  when: dc_role == "SECONDARY"
+
+- name: Join domain (only on secondary DC)
+  shell: |
+    samba-tool domain join {{ samba_realm }} DC \
+      -U"Administrator%{{ domain_admin_password }}" \
+      --server={{ hostvars[(groups['domain_controllers'] | first)].ansible_host | default('192.168.56.10') }}
+  args:
+    creates: /var/lib/samba/private/sam.ldb
+  register: dc_join_result
+  retries: 5
+  delay: 20
+  until: dc_join_result.rc == 0
+  when: dc_role == "SECONDARY"
+
+- name: Disable legacy Samba daemons on AD DC hosts
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - smbd
+    - nmbd
+    - winbind
+  failed_when: false
+
+- name: Unmask Samba AD DC service
+  systemd:
+    name: samba-ad-dc
+    masked: false
+    daemon_reload: true
+
+- name: Start Samba AD DC and verify local AD ports on primary
+  block:
+    - name: Start and enable Samba AD DC service
+      service:
+        name: samba-ad-dc
+        state: started
+        enabled: true
+
+    - name: Wait for Samba AD DC to listen on LDAP and Kerberos locally
+      wait_for:
+        host: 127.0.0.1
+        port: "{{ item }}"
+        state: started
+        timeout: 120
+        delay: 2
+      loop:
+        - 389
+        - 88
+      when: dc_role == "PRIMARY"
+  rescue:
+    - name: Capture Samba AD DC service status for debugging
+      shell: systemctl status samba-ad-dc --no-pager -l
+      register: samba_ad_status
+      changed_when: false
+      failed_when: false
+
+    - name: Capture Samba AD DC journal logs for debugging
+      shell: journalctl -u samba-ad-dc --no-pager -n 120
+      register: samba_ad_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Show Samba AD DC service status
+      debug:
+        var: samba_ad_status.stdout_lines
+
+    - name: Show Samba AD DC journal excerpt
+      debug:
+        var: samba_ad_journal.stdout_lines
+
+    - name: Fail with explicit Samba AD DC startup diagnostics
+      fail:
+        msg: "Samba AD DC failed to start or bind required ports; see debug output above."
+
+- name: Start and enable Squid proxy
+  service:
+    name: squid
+    state: started
+    enabled: true
+
+- name: Check if resolv.conf is a symlink
+  stat:
+    path: /etc/resolv.conf
+  register: resolv_conf_stat
+
+- name: Remove resolv.conf symlink managed by systemd-resolved
+  file:
+    path: /etc/resolv.conf
+    state: absent
+  when: resolv_conf_stat.stat.islnk | default(false)
+
+- name: Configure DNS resolution
+  template:
+    src: resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create domain admin user
+  user:
+    name: "{{ admin_user | default('sme-admin') }}"
+    password: "{{ admin_password | default('Admin123!') | password_hash('sha512') }}"
+    shell: /bin/bash
+    groups: sudo
+    state: present
+
+- name: Configure sudo for admin user
+  lineinfile:
+    path: /etc/sudoers
+    line: "{{ admin_user | default('sme-admin') }} ALL=(ALL) NOPASSWD:ALL"
+    state: present
+    validate: 'visudo -cf %s'
+
+- name: Ensure Apache web root exists for gateway status page
+  file:
+    path: /var/www/html
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Create gateway status page
+  template:
+    src: gateway-status.html.j2
+    dest: /var/www/html/gateway-status.html
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Configure Apache for gateway status
+  template:
+    src: gateway-status.conf.j2
+    dest: /etc/apache2/sites-available/gateway-status.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable gateway status site
+  shell: a2ensite gateway-status
+  args:
+    creates: /etc/apache2/sites-enabled/gateway-status.conf
+
+- name: Restart Apache
+  service:
+    name: apache2
+    state: restarted
+  when: dc_role == "PRIMARY" 
+
+- name: Configure SSH proxy for centralized access control
+  template:
+    src: ssh-proxy.conf.j2
+    dest: /etc/ssh/sshd_proxy_config
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Create SSH proxy service
+  template:
+    src: ssh-proxy.service.j2
+    dest: /etc/systemd/system/ssh-proxy.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create SSH tunnel script
+  template:
+    src: ssh-tunnel.sh.j2
+    dest: /usr/local/bin/ssh-tunnel
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Enable and start SSH proxy service
+  systemd:
+    name: ssh-proxy
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Configure SSH access logging
+  template:
+    src: ssh-logging.conf.j2
+    dest: /etc/rsyslog.d/ssh-proxy.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart rsyslog 

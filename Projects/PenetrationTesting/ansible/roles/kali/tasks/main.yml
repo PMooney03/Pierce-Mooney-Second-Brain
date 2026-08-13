@@ -1,0 +1,108 @@
+---
+- name: Set Kali attacker hostname
+  ansible.builtin.hostname:
+    name: "{{ kali_hostname }}"
+
+- name: Install offensive tooling packages
+  ansible.builtin.apt:
+    name: "{{ kali_tooling_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Deploy lab targets reference file (root)
+  ansible.builtin.template:
+    src: lab-targets.txt.j2
+    dest: /root/lab-targets.txt
+    mode: "0600"
+
+- name: Deploy lab targets reference file (vagrant SSH user)
+  ansible.builtin.template:
+    src: lab-targets.txt.j2
+    dest: /home/vagrant/lab-targets.txt
+    owner: vagrant
+    group: vagrant
+    mode: "0644"
+
+- name: Deploy connectivity validation script
+  ansible.builtin.template:
+    src: validate-connectivity.sh.j2
+    dest: /usr/local/bin/lab-validate-connectivity
+    mode: "0755"
+
+- name: Create lab workspace directory (root)
+  ansible.builtin.file:
+    path: /root/lab-workspace
+    state: directory
+    mode: "0700"
+
+- name: Create lab workspace for vagrant SSH user
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: vagrant
+    group: vagrant
+    mode: "0750"
+  loop:
+    - /home/vagrant/lab-workspace
+    - /home/vagrant/lab-workspace/evidence
+    - /home/vagrant/lab-workspace/evidence/scans
+    - /home/vagrant/lab-workspace/evidence/web
+    - /home/vagrant/lab-workspace/evidence/privesc
+    - /home/vagrant/lab-workspace/evidence/reports
+
+- name: Deploy tooling quick reference (root)
+  ansible.builtin.copy:
+    dest: /root/lab-workspace/TOOLING_REFERENCE.md
+    mode: "0644"
+    content: |
+      # Kali Attacker - Tooling Quick Reference (Lab Only)
+
+      ## Network Discovery
+      - nmap -sn 192.168.56.0/24
+      - nmap -sV -p- 192.168.56.20
+
+      ## Web Assessment (Docker on host gateway)
+      - curl -I http://{{ docker_host_ip }}:{{ dvwa_port }}/
+      - curl -I http://{{ docker_host_ip }}:{{ juice_shop_port }}/
+
+      ## SSH Enumeration
+      - ssh labuser@ubuntu-target
+      - nmap --script ssh-auth-methods -p 22 192.168.56.20
+
+      ## Reporting
+      - Store evidence in /root/lab-workspace/evidence/
+
+- name: Deploy tooling quick reference (vagrant SSH user)
+  ansible.builtin.copy:
+    dest: /home/vagrant/lab-workspace/TOOLING_REFERENCE.md
+    owner: vagrant
+    group: vagrant
+    mode: "0644"
+    content: |
+      # Kali Attacker - Tooling Quick Reference (Lab Only)
+
+      ## Network Discovery
+      - nmap -sn 192.168.56.0/24
+      - nmap -sV -p- 192.168.56.20
+
+      ## Web Assessment (Docker on host gateway)
+      - curl -I http://{{ docker_host_ip }}:{{ dvwa_port }}/
+      - curl -I http://{{ docker_host_ip }}:{{ juice_shop_port }}/
+
+      ## SSH Enumeration
+      - ssh labuser@192.168.56.20
+      - nmap --script ssh-auth-methods -p 22 192.168.56.20
+
+      ## Reporting
+      - Store evidence in ~/lab-workspace/evidence/
+
+- name: Run connectivity validation
+  ansible.builtin.command: /usr/local/bin/lab-validate-connectivity
+  register: kali_connectivity
+  changed_when: false
+  failed_when: false
+
+- name: Display connectivity validation output
+  ansible.builtin.debug:
+    var: kali_connectivity.stdout_lines

@@ -1,0 +1,11 @@
+[Unit]
+Description=SME Auto Recovery
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sme/scripts/auto-recovery.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

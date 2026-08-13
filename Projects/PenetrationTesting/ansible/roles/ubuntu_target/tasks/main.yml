@@ -1,0 +1,81 @@
+---
+- name: Set Ubuntu target hostname
+  ansible.builtin.hostname:
+    name: "{{ ubuntu_hostname }}"
+
+- name: Ensure SSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+    update_cache: true
+
+- name: Configure SSH for lab practice (password auth enabled)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-lab-training.conf
+    mode: "0644"
+    content: |
+      # LAB ONLY - intentional weak SSH for training (isolated network)
+      PasswordAuthentication yes
+      KbdInteractiveAuthentication yes
+      PermitRootLogin {{ ssh_permit_root_login }}
+      PermitEmptyPasswords {{ ssh_permit_empty_passwords }}
+    validate: "sshd -t -f %s"
+  notify: Restart SSH
+
+- name: Create practice user accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    password: "{{ item.password | password_hash('sha512') }}"
+    groups: "{{ item.groups | default(['users']) }}"
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    create_home: true
+  loop: "{{ practice_users }}"
+  no_log: true
+
+- name: Deploy intentionally world-readable shadow hint file (training)
+  ansible.builtin.copy:
+    dest: /home/labuser/notes.txt
+    owner: labuser
+    group: labuser
+    mode: "0644"
+    content: |
+      # Dev notes (LAB ONLY)
+      Remember: devops account may have reused passwords elsewhere in lab.
+      Flag location hint: check SUID binaries in /usr/local/bin/
+
+- name: Deploy SUID practice helper binary
+  ansible.builtin.copy:
+    dest: "{{ practice_suid_path }}"
+    mode: "4755"
+    content: |
+      #!/bin/bash
+      # Lab SUID enumeration practice binary - does not provide real privilege escalation
+      echo "lab-helper: enumeration practice only"
+      /usr/bin/id
+  when: practice_suid_path is defined
+
+- name: Create writable cron directory for privesc practice
+  ansible.builtin.file:
+    path: /opt/lab-backup
+    state: directory
+    mode: "0777"
+
+- name: Deploy weak sudo rule for devops (training)
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/99-lab-devops
+    mode: "0440"
+    content: |
+      # LAB ONLY - weak sudo for privilege escalation practice
+      devops ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/shadow
+
+- name: Validate SSH is listening
+  ansible.builtin.wait_for:
+    port: 22
+    host: "127.0.0.1"
+    timeout: 30
+
+- name: Record target provisioning complete
+  ansible.builtin.copy:
+    dest: /etc/enterprise-pentest-lab/ubuntu-target.done
+    mode: "0644"
+    content: "provisioned={{ ansible_facts['date_time']['iso8601'] }}\n"

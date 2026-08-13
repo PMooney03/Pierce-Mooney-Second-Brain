@@ -1,0 +1,4 @@
+# Force Unix line endings for scripts deployed to Linux VMs
+*.sh text eol=lf
+vagrant/scripts/** text eol=lf
+ansible/**/*.sh text eol=lf

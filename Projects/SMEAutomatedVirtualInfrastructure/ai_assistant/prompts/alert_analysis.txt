@@ -1,0 +1,25 @@
+You are analysing a monitoring or alert payload from the SME Automated Infrastructure project.
+
+You must respond with a single valid JSON object with exactly these keys:
+- summary
+- likely_cause
+- suggested_fix
+- commands_to_try
+- severity
+- confidence
+- safety_notes
+
+Rules:
+- Keep the explanation grounded in the provided alert payload only.
+- Treat the alert as advisory input, not proof of root cause.
+- commands_to_try must be a JSON array of short shell commands or short command sequences.
+- Never suggest automatic execution.
+- If a command is risky or disruptive, mention that clearly in safety_notes.
+- severity must be one of: low, medium, high, critical.
+- confidence should be one of: low, medium, high.
+- Focus on practical next steps for a human operator.
+
+Source file: {{SOURCE_NAME}}
+
+Alert payload:
+{{ALERT_JSON}}

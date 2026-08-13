@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Lab connectivity validation - runs from kali-attacker
+set -uo pipefail
+
+echo "=== {{ lab_name }} Connectivity Validation ==="
+
+TARGETS=(
+  "192.168.56.20 ubuntu-target"
+  "192.168.56.30 windows-server"
+)
+
+for entry in "${TARGETS[@]}"; do
+  ip="${entry%% *}"
+  name="${entry##* }"
+  if ping -c 1 -W 2 "${ip}" &>/dev/null; then
+    echo "[OK]   ${name} (${ip}) - ICMP reachable"
+  else
+    echo "[FAIL] ${name} (${ip}) - ICMP unreachable"
+  fi
+done
+
+# Docker apps on host (VirtualBox host-only gateway)
+DOCKER_HOST="{{ docker_host_ip }}"
+for port in {{ dvwa_port }} {{ juice_shop_port }}; do
+  if curl -sf --connect-timeout 3 "http://${DOCKER_HOST}:${port}/" -o /dev/null; then
+    echo "[OK]   HTTP ${DOCKER_HOST}:${port}"
+  else
+    echo "[WARN] HTTP ${DOCKER_HOST}:${port} - not reachable (start docker compose on host)"
+  fi
+done
+
+echo "=== Validation complete ==="

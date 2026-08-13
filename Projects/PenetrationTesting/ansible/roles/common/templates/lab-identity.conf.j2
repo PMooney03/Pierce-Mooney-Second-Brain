@@ -1,0 +1,7 @@
+# {{ lab_name }} - Lab Identity
+LAB_NAME={{ lab_name }}
+LAB_VERSION={{ lab_identity_version }}
+HOSTNAME={{ inventory_hostname }}
+MANAGED_BY=ansible
+ISOLATED={{ lab_isolated | lower }}
+PROVISIONED_AT={{ ansible_facts['date_time']['iso8601'] }}

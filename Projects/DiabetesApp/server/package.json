@@ -1,0 +1,22 @@
+{
+  "name": "diabetes-app-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch dev-entry.js",
+    "setup": "node setup-cli.js",
+    "backup": "node backup-cli.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^9.0.3"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

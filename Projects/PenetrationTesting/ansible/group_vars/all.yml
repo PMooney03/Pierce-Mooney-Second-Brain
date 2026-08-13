@@ -1,0 +1,27 @@
+---
+# Global lab variables
+lab_name: enterprise-pentest-lab
+lab_network_cidr: "192.168.56.0/24"
+
+# VirtualBox host-only IP — VMs reach Docker on the host via this address.
+# Auto-detected on host by setup scripts; override in group_vars/local.yml if needed.
+docker_host_ip: "192.168.56.1"
+lab_gateway: "{{ docker_host_ip }}"
+lab_dns_servers:
+  - "{{ docker_host_ip }}"
+
+dvwa_port: 8080
+juice_shop_port: 3000
+grafana_port: 3001
+prometheus_port: 9090
+cadvisor_port: 8081
+
+# Lab VM targets for Prometheus (node_exporter)
+lab_vm_targets:
+  - "192.168.56.10:9100"
+  - "192.168.56.20:9100"
+  - "192.168.56.30:9100"
+
+# Safety: lab-only scope markers
+lab_isolated: true
+allow_external_scanning: false

@@ -1,0 +1,5 @@
+---
+# Stub role for file servers (Samba/NFS configured by Vagrant bootstrap)
+- name: File server role placeholder
+  debug:
+    msg: "File server config applied by bootstrap; extend this role as needed."

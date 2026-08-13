@@ -1,0 +1,27 @@
+---
+- name: Deploy lab security boundary notice
+  ansible.builtin.copy:
+    dest: /etc/motd
+    mode: "0644"
+    content: |
+      ═══════════════════════════════════════════════════════════════
+        {{ lab_name | upper }} - ISOLATED TRAINING ENVIRONMENT
+      ═══════════════════════════════════════════════════════════════
+        Authorized use only. All activity is confined to 192.168.56.0/24.
+        Do not scan or test systems outside this lab network.
+      ═══════════════════════════════════════════════════════════════
+
+- name: Disable IP forwarding (lab isolation)
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_forward
+    value: "0"
+    sysctl_set: true
+    state: present
+  when: ansible_os_family == "Debian"
+  failed_when: false
+
+- name: Record security baseline completion
+  ansible.builtin.copy:
+    dest: /etc/enterprise-pentest-lab/security-baseline.done
+    mode: "0644"
+    content: "baseline_applied={{ ansible_facts['date_time']['iso8601'] }}\n"

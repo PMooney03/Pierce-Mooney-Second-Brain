@@ -1,0 +1,34 @@
+{
+  "status": "firing",
+  "receiver": "default",
+  "groupLabels": {
+    "alertname": "InstanceDown"
+  },
+  "commonLabels": {
+    "alertname": "InstanceDown",
+    "instance": "192.168.56.41:9100",
+    "job": "node_exporter",
+    "severity": "critical"
+  },
+  "commonAnnotations": {
+    "summary": "Instance 192.168.56.41:9100 is down",
+    "description": "Prometheus has not been able to scrape node_exporter on log-1 for more than 5 minutes."
+  },
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "InstanceDown",
+        "instance": "192.168.56.41:9100",
+        "job": "node_exporter",
+        "severity": "critical",
+        "host": "log-1"
+      },
+      "annotations": {
+        "summary": "node_exporter target is down",
+        "description": "log-1 is no longer responding on port 9100."
+      },
+      "startsAt": "2026-05-25T16:00:00Z"
+    }
+  ]
+}

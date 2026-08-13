@@ -1,0 +1,4 @@
+---
+- name: Validate lab marker
+  ansible.builtin.command: test -f /etc/enterprise-pentest-lab/identity.conf
+  changed_when: false

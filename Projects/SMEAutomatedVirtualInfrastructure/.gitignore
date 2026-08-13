@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+*.cover
+.hypothesis/
+.pytest_cache/
+coverage.xml
+*.log
+!ai_assistant/examples/sample_setup_error.log
+
+# Vagrant
+.vagrant/
+*.box
+vagrant/ssh-jump/
+
+# Ansible
+*.retry
+ansible.log
+
+# Project specific
+*.pyc
+__pycache__/
+gui/users.json
+last_error.txt
+
+# Saved Vagrant session logs (keep directory via .gitkeep)
+logs/vagrant/*.log
+logs/vagrant/LATEST
+!logs/vagrant/.gitkeep

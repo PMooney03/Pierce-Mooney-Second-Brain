@@ -1,0 +1,29 @@
+#root {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  text-align: left;
+}
+
+.install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.35);
+}
+
+.install-btn-ios {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+}
+
+.install-btn:active {
+  transform: scale(0.98);
+}

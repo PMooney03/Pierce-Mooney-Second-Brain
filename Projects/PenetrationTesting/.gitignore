@@ -1,0 +1,35 @@
+# Vagrant
+.vagrant/
+*.box
+
+# Ansible
+*.retry
+.ansible/
+ansible/group_vars/local.yml
+
+# Docker
+docker/.env
+
+# Logs and temp
+logs/
+tmp/
+*.log
+lab-summary.txt
+.connectivity-cache
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets (never commit)
+*.pem
+*.key
+.env.local
+secrets/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~

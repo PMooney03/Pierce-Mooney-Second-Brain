@@ -1,0 +1,41 @@
+# Fail2ban Configuration for SME Infrastructure
+
+[DEFAULT]
+# Ban hosts for 1 hour
+bantime = 3600
+# Check for new entries every 10 minutes
+findtime = 600
+# Allow 3 failures before banning
+maxretry = 3
+# Ban action
+banaction = ufw
+# Log level
+loglevel = INFO
+# Log target
+logtarget = /var/log/fail2ban.log
+
+# SSH jail
+[sshd]
+enabled = true
+port = {{ ssh_port }}
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 3600
+
+# SSH-DDOS jail
+[ssh-ddos]
+enabled = true
+port = {{ ssh_port }}
+filter = sshd-ddos
+logpath = /var/log/auth.log
+maxretry = 2
+bantime = 7200
+
+# UFW jail
+[ufw]
+enabled = true
+filter = ufw
+logpath = /var/log/ufw.log
+maxretry = 3
+bantime = 3600 

@@ -1,0 +1,5 @@
+---
+# Stub role for logging (ELK/rsyslog configured by Vagrant bootstrap)
+- name: Logging role placeholder
+  debug:
+    msg: "Logging config applied by bootstrap; extend this role as needed."

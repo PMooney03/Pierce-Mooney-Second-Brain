@@ -1,0 +1,170 @@
+[
+  {
+    "name": "Ireland",
+    "country": "Ireland",
+    "region_code": "IE",
+    "region_type": "country",
+    "bbox": [
+      -10.5,
+      51.4,
+      -5.9,
+      55.4
+    ],
+    "total_population": 5033000,
+    "area_km2": 70273
+  },
+  {
+    "name": "United Kingdom",
+    "country": "United Kingdom",
+    "region_code": "GB",
+    "region_type": "country",
+    "bbox": [
+      -8.2,
+      49.8,
+      1.8,
+      60.9
+    ],
+    "total_population": 67081000,
+    "area_km2": 243610
+  },
+  {
+    "name": "France",
+    "country": "France",
+    "region_code": "FR",
+    "region_type": "country",
+    "bbox": [
+      -5.1,
+      41.3,
+      9.6,
+      51.1
+    ],
+    "total_population": 67897000,
+    "area_km2": 643801
+  },
+  {
+    "name": "Germany",
+    "country": "Germany",
+    "region_code": "DE",
+    "region_type": "country",
+    "bbox": [
+      5.9,
+      47.3,
+      15.0,
+      55.1
+    ],
+    "total_population": 83200000,
+    "area_km2": 357022
+  },
+  {
+    "name": "Spain",
+    "country": "Spain",
+    "region_code": "ES",
+    "region_type": "country",
+    "bbox": [
+      -9.3,
+      35.2,
+      4.3,
+      43.8
+    ],
+    "total_population": 47431000,
+    "area_km2": 505990
+  },
+  {
+    "name": "Italy",
+    "country": "Italy",
+    "region_code": "IT",
+    "region_type": "country",
+    "bbox": [
+      6.6,
+      36.6,
+      18.5,
+      47.1
+    ],
+    "total_population": 58850000,
+    "area_km2": 301340
+  },
+  {
+    "name": "United States",
+    "country": "United States",
+    "region_code": "US",
+    "region_type": "country",
+    "bbox": [
+      -125.0,
+      24.5,
+      -66.9,
+      49.4
+    ],
+    "total_population": 331900000,
+    "area_km2": 9833517
+  },
+  {
+    "name": "Canada",
+    "country": "Canada",
+    "region_code": "CA",
+    "region_type": "country",
+    "bbox": [
+      -141.0,
+      41.7,
+      -52.6,
+      83.1
+    ],
+    "total_population": 38246000,
+    "area_km2": 9984670
+  },
+  {
+    "name": "Australia",
+    "country": "Australia",
+    "region_code": "AU",
+    "region_type": "country",
+    "bbox": [
+      113.3,
+      -43.6,
+      153.6,
+      -10.7
+    ],
+    "total_population": 25788000,
+    "area_km2": 7692024
+  },
+  {
+    "name": "Brazil",
+    "country": "Brazil",
+    "region_code": "BR",
+    "region_type": "country",
+    "bbox": [
+      -73.9,
+      -33.7,
+      -28.8,
+      5.3
+    ],
+    "total_population": 215300000,
+    "area_km2": 8515770
+  },
+  {
+    "name": "India",
+    "country": "India",
+    "region_code": "IN",
+    "region_type": "country",
+    "bbox": [
+      68.1,
+      6.8,
+      97.4,
+      35.7
+    ],
+    "total_population": 1408000000,
+    "area_km2": 3287263
+  },
+  {
+    "name": "China",
+    "country": "China",
+    "region_code": "CN",
+    "region_type": "country",
+    "bbox": [
+      73.5,
+      18.2,
+      135.0,
+      53.6
+    ],
+    "total_population": 1412000000,
+    "area_km2": 9596961
+  }
+]

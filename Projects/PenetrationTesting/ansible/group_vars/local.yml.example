@@ -1,0 +1,4 @@
+---
+# Copy to local.yml (gitignored) to override auto-detected host gateway
+# Run: VBoxManage list hostonlyifs   and use the IPAddress value
+docker_host_ip: "192.168.56.254"

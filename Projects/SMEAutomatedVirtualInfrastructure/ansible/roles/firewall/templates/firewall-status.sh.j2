@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Firewall Status Script for SME Infrastructure
+
+LOG_FILE="/var/log/sme/firewall-status.log"
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+echo "[$DATE] VRRP state change detected on {{ inventory_hostname }}" >> $LOG_FILE
+
+# Check current VRRP state
+VRRP_STATE=$(ip addr show eth1 | grep -o "{{ firewall_virtual_ip }}" | wc -l)
+
+if [ $VRRP_STATE -eq 1 ]; then
+    echo "[$DATE] {{ inventory_hostname }} is now MASTER" >> $LOG_FILE
+    # Additional master actions can be added here
+else
+    echo "[$DATE] {{ inventory_hostname }} is now BACKUP" >> $LOG_FILE
+    # Additional backup actions can be added here
+fi
+
+# Log iptables status
+echo "[$DATE] Current iptables rules:" >> $LOG_FILE
+iptables -L -n >> $LOG_FILE 2>&1
+
+# Send notification (if configured)
+# echo "VRRP state changed on {{ inventory_hostname }}" | mail -s "Firewall Status Alert" admin@sme.local 

@@ -1,0 +1,32 @@
+# NTP Configuration for SME Infrastructure
+
+# Drift file
+driftfile /var/lib/ntp/drift
+
+# Log file
+logfile /var/log/ntp.log
+
+# Statistics directory
+statsdir /var/log/ntpstats/
+
+# Statistics files
+statistics loopstats peerstats clockstats
+filegen loopstats file loopstats type day enable
+filegen peerstats file peerstats type day enable
+filegen clockstats file clockstats type day enable
+
+# NTP servers
+{% for server in ntp_servers %}
+server {{ server }} iburst
+{% endfor %}
+
+# Local clock as fallback
+server 127.127.1.0
+fudge 127.127.1.0 stratum 10
+
+# Access control
+restrict default kod nomodify notrap nopeer noquery
+restrict -6 default kod nomodify notrap nopeer noquery
+restrict 127.0.0.1
+restrict -6 ::1
+restrict {{ network_subnet }} mask 255.255.255.0 nomodify notrap 

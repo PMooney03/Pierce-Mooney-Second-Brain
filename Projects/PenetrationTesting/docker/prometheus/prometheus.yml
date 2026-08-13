@@ -1,0 +1,32 @@
+# Prometheus configuration - enterprise-pentest-lab
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          component: monitoring
+
+  # Lab VMs — node_exporter installed by Ansible on each host
+  - job_name: lab_vms
+    static_configs:
+      - targets:
+          - "192.168.56.10:9100"
+          - "192.168.56.20:9100"
+          - "192.168.56.30:9100"
+        labels:
+          environment: enterprise-pentest-lab
+    metrics_path: /metrics
+    scrape_timeout: 10s
+
+  # Docker container metrics via cAdvisor (same Compose network)
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          component: containers
+    metrics_path: /metrics
+    scrape_timeout: 10s

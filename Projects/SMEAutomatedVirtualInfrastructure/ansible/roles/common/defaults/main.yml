@@ -1,0 +1,7 @@
+---
+# Controls whether SSH / firewall hardening in the common role is applied.
+# Default is disabled for Vagrant/project use to avoid locking out access.
+# Set to true (e.g. via -e "sme_hardening_enabled=true" or group_vars)
+# when running in a hardened / production-style environment.
+sme_hardening_enabled: false
+

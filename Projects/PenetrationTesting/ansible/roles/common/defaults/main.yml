@@ -1,0 +1,12 @@
+---
+common_packages:
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - iputils-ping
+  - ca-certificates
+  - unzip
+
+lab_identity_version: "1.0.0"

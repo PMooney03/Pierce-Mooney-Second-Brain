@@ -1,0 +1,192 @@
+#!/bin/bash
+# SSH Tunnel Script for SME Infrastructure
+# This script creates SSH tunnels through DC boxes to access internal hosts
+
+DC1_IP="192.168.56.10"
+DC2_IP="192.168.56.11"
+SSH_PROXY_PORT="2222"
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [OPTIONS] <target_host>"
+    echo ""
+    echo "Options:"
+    echo "  -u, --user USERNAME    SSH username (default: vagrant)"
+    echo "  -p, --port PORT        Local port to bind (default: 2222)"
+    echo "  -d, --dc DC_NUMBER     Use specific DC (1 or 2, default: auto)"
+    echo "  -l, --list             List available hosts"
+    echo "  -h, --help             Show this help"
+    echo ""
+    echo "Examples:"
+    echo "  $0 web-1                    # Connect to web-1 through auto-selected DC"
+    echo "  $0 -u sme-admin -p 2223 mgmt-1  # Connect to mgmt-1 on port 2223"
+    echo "  $0 -d 2 filesrv-1           # Connect through DC-2"
+    echo ""
+}
+
+# Function to list available hosts
+list_hosts() {
+    echo "Available hosts:"
+    echo "  Firewalls:     fw-1, fw-2"
+    echo "  Domain Controllers: dc-1, dc-2"
+    echo "  File Servers:  filesrv-1, filesrv-2"
+    echo "  Web Servers:   web-1, web-2"
+    echo "  Monitoring:    monitor-1"
+    echo "  Logging:       log-1"
+    echo "  Management:    mgmt-1, mgmt-2"
+    echo ""
+    echo "Host IPs:"
+    echo "  fw-1: 192.168.56.3"
+    echo "  fw-2: 192.168.56.2"
+    echo "  dc-1: 192.168.56.10"
+    echo "  dc-2: 192.168.56.11"
+    echo "  filesrv-1: 192.168.56.20"
+    echo "  filesrv-2: 192.168.56.21"
+    echo "  web-1: 192.168.56.30"
+    echo "  web-2: 192.168.56.31"
+    echo "  monitor-1: 192.168.56.40"
+    echo "  log-1: 192.168.56.41"
+    echo "  mgmt-1: 192.168.56.50"
+    echo "  mgmt-2: 192.168.56.51"
+}
+
+# Function to get host IP
+get_host_ip() {
+    local hostname=$1
+    case $hostname in
+        fw-1) echo "192.168.56.3" ;;
+        fw-2) echo "192.168.56.2" ;;
+        dc-1) echo "192.168.56.10" ;;
+        dc-2) echo "192.168.56.11" ;;
+        filesrv-1) echo "192.168.56.20" ;;
+        filesrv-2) echo "192.168.56.21" ;;
+        web-1) echo "192.168.56.30" ;;
+        web-2) echo "192.168.56.31" ;;
+        monitor-1) echo "192.168.56.40" ;;
+        log-1) echo "192.168.56.41" ;;
+        mgmt-1) echo "192.168.56.50" ;;
+        mgmt-2) echo "192.168.56.51" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Function to check DC availability
+check_dc() {
+    local dc_ip=$1
+    ping -c 1 -W 2 $dc_ip > /dev/null 2>&1
+    return $?
+}
+
+# Function to select best DC
+select_dc() {
+    local dc1_available=false
+    local dc2_available=false
+    
+    if check_dc $DC1_IP; then
+        dc1_available=true
+    fi
+    
+    if check_dc $DC2_IP; then
+        dc2_available=true
+    fi
+    
+    if [ "$dc1_available" = true ] && [ "$dc2_available" = true ]; then
+        # Both available, prefer DC1 (primary)
+        echo $DC1_IP
+    elif [ "$dc1_available" = true ]; then
+        echo $DC1_IP
+    elif [ "$dc2_available" = true ]; then
+        echo $DC2_IP
+    else
+        echo "ERROR: No DC available"
+        exit 1
+    fi
+}
+
+# Parse command line arguments
+USERNAME="vagrant"
+LOCAL_PORT="2222"
+DC_NUMBER=""
+TARGET_HOST=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -u|--user)
+            USERNAME="$2"
+            shift 2
+            ;;
+        -p|--port)
+            LOCAL_PORT="$2"
+            shift 2
+            ;;
+        -d|--dc)
+            DC_NUMBER="$2"
+            shift 2
+            ;;
+        -l|--list)
+            list_hosts
+            exit 0
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+        *)
+            TARGET_HOST="$1"
+            shift
+            ;;
+    esac
+done
+
+# Check if target host is provided
+if [ -z "$TARGET_HOST" ]; then
+    echo "ERROR: Target host is required"
+    show_usage
+    exit 1
+fi
+
+# Get target host IP
+TARGET_IP=$(get_host_ip $TARGET_HOST)
+if [ -z "$TARGET_IP" ]; then
+    echo "ERROR: Unknown host: $TARGET_HOST"
+    list_hosts
+    exit 1
+fi
+
+# Select DC
+if [ -n "$DC_NUMBER" ]; then
+    case $DC_NUMBER in
+        1) DC_IP=$DC1_IP ;;
+        2) DC_IP=$DC2_IP ;;
+        *) echo "ERROR: Invalid DC number. Use 1 or 2"; exit 1 ;;
+    esac
+    
+    if ! check_dc $DC_IP; then
+        echo "ERROR: DC-$DC_NUMBER ($DC_IP) is not available"
+        exit 1
+    fi
+else
+    DC_IP=$(select_dc)
+    if [[ $DC_IP == ERROR* ]]; then
+        echo $DC_IP
+        exit 1
+    fi
+fi
+
+echo "Connecting to $TARGET_HOST ($TARGET_IP) through DC ($DC_IP)"
+echo "Local port: $LOCAL_PORT"
+echo "Username: $USERNAME"
+echo ""
+echo "After connection, you can SSH to localhost:$LOCAL_PORT to access $TARGET_HOST"
+echo "Example: ssh $USERNAME@localhost -p $LOCAL_PORT"
+echo ""
+echo "Press Ctrl+C to stop the tunnel"
+echo ""
+
+# Create SSH tunnel
+ssh -L $LOCAL_PORT:$TARGET_IP:22 $USERNAME@$DC_IP -p $SSH_PROXY_PORT 

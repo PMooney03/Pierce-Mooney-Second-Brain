@@ -1,0 +1,20 @@
+# SSH Proxy Logging Configuration
+# Log all SSH proxy access attempts
+
+# Log SSH proxy connections
+if $programname == 'sshd' and $msg contains 'Accepted' then {
+    action(type="omfile" file="/var/log/sme/ssh-proxy-access.log")
+    action(type="omfile" file="/var/log/auth.log")
+}
+
+# Log SSH proxy failures
+if $programname == 'sshd' and $msg contains 'Failed' then {
+    action(type="omfile" file="/var/log/sme/ssh-proxy-failures.log")
+    action(type="omfile" file="/var/log/auth.log")
+}
+
+# Log SSH proxy disconnections
+if $programname == 'sshd' and $msg contains 'Disconnected' then {
+    action(type="omfile" file="/var/log/sme/ssh-proxy-access.log")
+    action(type="omfile" file="/var/log/auth.log")
+} 

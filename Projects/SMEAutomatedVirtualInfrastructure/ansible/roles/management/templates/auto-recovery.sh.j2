@@ -1,0 +1,403 @@
+#!/bin/bash
+
+# SME Infrastructure Auto-Recovery Script
+# Automatically recovers downed infrastructure components
+
+set -euo pipefail
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="/opt/sme/config/recovery-config.json"
+LOG_FILE="/var/log/sme/recovery/auto-recovery.log"
+BACKUP_DIR="/opt/sme/backups"
+VAGRANT_DIR="/vagrant"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging function
+log() {
+    local level=$1
+    shift
+    local message="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
+}
+
+# Parse command line arguments
+HOST=""
+ISSUE=""
+DRY_RUN=false
+VERBOSE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --host)
+            HOST="$2"
+            shift 2
+            ;;
+        --issue)
+            ISSUE="$2"
+            shift 2
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  --host HOSTNAME    Target host to recover"
+            echo "  --issue ISSUE      Type of issue (host_down, ssh_issue, service_down)"
+            echo "  --dry-run          Show what would be done without executing"
+            echo "  --verbose          Enable verbose output"
+            echo "  --help             Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Load configuration
+load_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        log "ERROR" "Configuration file not found: $CONFIG_FILE"
+        exit 1
+    fi
+    
+    if ! command -v jq &> /dev/null; then
+        log "ERROR" "jq is required but not installed"
+        exit 1
+    fi
+    
+    # Load host configuration
+    HOST_IP=$(jq -r ".hosts.$HOST.ip // empty" "$CONFIG_FILE")
+    HOST_TYPE=$(jq -r ".hosts.$HOST.type // empty" "$CONFIG_FILE")
+    HOST_SERVICES=$(jq -r ".hosts.$HOST.services // []" "$CONFIG_FILE")
+    
+    if [[ -z "$HOST_IP" ]]; then
+        log "ERROR" "Host $HOST not found in configuration"
+        exit 1
+    fi
+}
+
+# Check if host is reachable
+check_host_status() {
+    local host_ip=$1
+    local ping_result
+    local ssh_result
+    
+    log "INFO" "Checking status of $HOST ($host_ip)"
+    
+    # Ping test
+    if ping -c 3 -W 5 "$host_ip" &> /dev/null; then
+        ping_result=true
+        log "INFO" "✅ Host $HOST responds to ping"
+    else
+        ping_result=false
+        log "WARN" "❌ Host $HOST does not respond to ping"
+    fi
+    
+    # SSH test
+    if ssh -o ConnectTimeout=10 -o BatchMode=yes "vagrant@$host_ip" "echo 'SSH test'" &> /dev/null; then
+        ssh_result=true
+        log "INFO" "✅ SSH connection to $HOST successful"
+    else
+        ssh_result=false
+        log "WARN" "❌ SSH connection to $HOST failed"
+    fi
+    
+    echo "$ping_result:$ssh_result"
+}
+
+# Attempt to restart a VM using Vagrant
+restart_vm() {
+    local host=$1
+    local host_ip=$2
+    
+    log "INFO" "Attempting to restart VM for $host"
+    
+    if [[ "$DRY_RUN" == true ]]; then
+        log "INFO" "[DRY RUN] Would restart VM: vagrant up $host"
+        return 0
+    fi
+    
+    # Change to vagrant directory
+    cd "$VAGRANT_DIR" || {
+        log "ERROR" "Failed to change to vagrant directory: $VAGRANT_DIR"
+        return 1
+    }
+    
+    # Try to restart the VM
+    if vagrant up "$host" --no-provision; then
+        log "INFO" "✅ Successfully restarted VM for $host"
+        return 0
+    else
+        log "ERROR" "❌ Failed to restart VM for $host"
+        return 1
+    fi
+}
+
+# Attempt to restart services on a host
+restart_services() {
+    local host=$1
+    local host_ip=$2
+    local services=$3
+    
+    log "INFO" "Attempting to restart services on $host"
+    
+    if [[ "$DRY_RUN" == true ]]; then
+        log "INFO" "[DRY RUN] Would restart services on $host"
+        return 0
+    fi
+    
+    # Common service restart commands
+    local service_commands=(
+        "sudo systemctl daemon-reload"
+        "sudo systemctl restart ssh"
+        "sudo systemctl restart networking"
+        "sudo systemctl restart systemd-resolved"
+    )
+    
+    # Add specific services based on host type
+    case "$HOST_TYPE" in
+        "firewall")
+            service_commands+=(
+                "sudo systemctl restart ufw"
+                "sudo systemctl restart iptables"
+            )
+            ;;
+        "domain_controller")
+            service_commands+=(
+                "sudo systemctl restart bind9"
+                "sudo systemctl restart slapd"
+                "sudo systemctl restart krb5-kdc"
+                "sudo systemctl restart squid"
+            )
+            ;;
+        "file_server")
+            service_commands+=(
+                "sudo systemctl restart nfs-kernel-server"
+                "sudo systemctl restart samba"
+                "sudo systemctl restart glusterd"
+            )
+            ;;
+        "web_server")
+            service_commands+=(
+                "sudo systemctl restart apache2"
+                "sudo systemctl restart nginx"
+                "sudo systemctl restart php-fpm"
+            )
+            ;;
+        "monitoring")
+            service_commands+=(
+                "sudo systemctl restart prometheus"
+                "sudo systemctl restart grafana-server"
+                "sudo systemctl restart node_exporter"
+            )
+            ;;
+        "logging")
+            service_commands+=(
+                "sudo systemctl restart rsyslog"
+                "sudo systemctl restart elasticsearch"
+                "sudo systemctl restart kibana"
+            )
+            ;;
+    esac
+    
+    # Execute commands via SSH
+    for cmd in "${service_commands[@]}"; do
+        log "INFO" "Executing: $cmd on $host"
+        if ssh -o ConnectTimeout=10 "vagrant@$host_ip" "$cmd"; then
+            log "INFO" "✅ Successfully executed: $cmd"
+        else
+            log "WARN" "⚠️  Failed to execute: $cmd"
+        fi
+    done
+}
+
+# Attempt to restore from backup
+restore_from_backup() {
+    local host=$1
+    local host_ip=$2
+    
+    log "INFO" "Attempting to restore $host from backup"
+    
+    local backup_file="$BACKUP_DIR/${host}_$(date +%Y%m%d).tar.gz"
+    
+    if [[ ! -f "$backup_file" ]]; then
+        log "WARN" "No backup found for $host: $backup_file"
+        return 1
+    fi
+    
+    if [[ "$DRY_RUN" == true ]]; then
+        log "INFO" "[DRY RUN] Would restore from backup: $backup_file"
+        return 0
+    fi
+    
+    # Copy backup to host and restore
+    if scp "$backup_file" "vagrant@$host_ip:/tmp/"; then
+        log "INFO" "✅ Backup copied to $host"
+        
+        # Extract and restore
+        if ssh "vagrant@$host_ip" "cd /tmp && sudo tar -xzf $(basename "$backup_file") -C /"; then
+            log "INFO" "✅ Successfully restored $host from backup"
+            return 0
+        else
+            log "ERROR" "❌ Failed to restore $host from backup"
+            return 1
+        fi
+    else
+        log "ERROR" "❌ Failed to copy backup to $host"
+        return 1
+    fi
+}
+
+# Attempt to fix network issues
+fix_network() {
+    local host=$1
+    local host_ip=$2
+    
+    log "INFO" "Attempting to fix network issues on $host"
+    
+    if [[ "$DRY_RUN" == true ]]; then
+        log "INFO" "[DRY RUN] Would fix network on $host"
+        return 0
+    fi
+    
+    # Network recovery commands
+    local network_commands=(
+        "sudo ip link set eth0 up"
+        "sudo systemctl restart networking"
+        "sudo systemctl restart systemd-resolved"
+        "sudo route add default gw 192.168.56.1"
+        "sudo ip addr add $host_ip/24 dev eth0"
+    )
+    
+    # Try to execute via SSH if possible, otherwise via console
+    for cmd in "${network_commands[@]}"; do
+        log "INFO" "Executing network command: $cmd"
+        if ssh -o ConnectTimeout=10 "vagrant@$host_ip" "$cmd" 2>/dev/null; then
+            log "INFO" "✅ Network command successful: $cmd"
+        else
+            log "WARN" "⚠️  Network command failed: $cmd"
+        fi
+    done
+}
+
+# Main recovery procedure
+perform_recovery() {
+    local host=$1
+    local issue=$2
+    
+    log "INFO" "Starting recovery procedure for $host (Issue: $issue)"
+    
+    # Load configuration
+    load_config
+    
+    # Check current status
+    local status
+    status=$(check_host_status "$HOST_IP")
+    local ping_status=$(echo "$status" | cut -d: -f1)
+    local ssh_status=$(echo "$status" | cut -d: -f2)
+    
+    case "$issue" in
+        "host_down")
+            if [[ "$ping_status" == "false" ]]; then
+                log "INFO" "Host $host is completely down, attempting VM restart"
+                restart_vm "$host" "$HOST_IP"
+                
+                # Wait for VM to come up
+                log "INFO" "Waiting for VM to come up..."
+                sleep 30
+                
+                # Check status again
+                status=$(check_host_status "$HOST_IP")
+                ping_status=$(echo "$status" | cut -d: -f1)
+                ssh_status=$(echo "$status" | cut -d: -f2)
+            fi
+            ;;
+            
+        "ssh_issue")
+            if [[ "$ping_status" == "true" && "$ssh_status" == "false" ]]; then
+                log "INFO" "Host $host is reachable but SSH is down, attempting service restart"
+                restart_services "$host" "$HOST_IP" "$HOST_SERVICES"
+            fi
+            ;;
+            
+        "service_down")
+            if [[ "$ping_status" == "true" && "$ssh_status" == "true" ]]; then
+                log "INFO" "Host $host is up but services are down, attempting service restart"
+                restart_services "$host" "$HOST_IP" "$HOST_SERVICES"
+            fi
+            ;;
+            
+        "network_issue")
+            log "INFO" "Attempting to fix network issues on $host"
+            fix_network "$host" "$HOST_IP"
+            ;;
+            
+        "backup_restore")
+            log "INFO" "Attempting to restore $host from backup"
+            restore_from_backup "$host" "$HOST_IP"
+            ;;
+            
+        *)
+            log "ERROR" "Unknown issue type: $issue"
+            return 1
+            ;;
+    esac
+    
+    # Final status check
+    log "INFO" "Performing final status check"
+    status=$(check_host_status "$HOST_IP")
+    ping_status=$(echo "$status" | cut -d: -f1)
+    ssh_status=$(echo "$status" | cut -d: -f2)
+    
+    if [[ "$ping_status" == "true" && "$ssh_status" == "true" ]]; then
+        log "INFO" "✅ Recovery successful! Host $host is now healthy"
+        return 0
+    else
+        log "ERROR" "❌ Recovery failed! Host $host is still unhealthy"
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    # Create log directory
+    mkdir -p "$(dirname "$LOG_FILE")"
+    
+    log "INFO" "=== Auto-Recovery Script Started ==="
+    log "INFO" "Host: $HOST"
+    log "INFO" "Issue: $ISSUE"
+    log "INFO" "Dry run: $DRY_RUN"
+    
+    if [[ -z "$HOST" || -z "$ISSUE" ]]; then
+        log "ERROR" "Both --host and --issue parameters are required"
+        exit 1
+    fi
+    
+    # Perform recovery
+    if perform_recovery "$HOST" "$ISSUE"; then
+        log "INFO" "✅ Recovery procedure completed successfully"
+        exit 0
+    else
+        log "ERROR" "❌ Recovery procedure failed"
+        exit 1
+    fi
+}
+
+# Run main function
+main "$@" 

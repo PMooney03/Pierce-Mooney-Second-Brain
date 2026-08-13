@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #134e4a;
+  background-color: #f0fdfa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark {
+  color: #ccfbf1;
+  background-color: #042f2e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+button {
+  font-family: inherit;
+}
+
+input, select, textarea {
+  font-size: 1.125rem;
+}
+
+input, select, textarea {
+  color: inherit;
+  background-color: white;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #134e4a;
+  color: #f0fdfa;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #5eead4;
+  opacity: 0.6;
+}
+
+@media print {
+  nav,
+  header button,
+  .print-hidden {
+    display: none !important;
+  }
+
+  body,
+  #root,
+  .weekly-summary {
+    background: white !important;
+    color: black !important;
+  }
+
+  .weekly-summary article {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #ccc;
+  }
+}

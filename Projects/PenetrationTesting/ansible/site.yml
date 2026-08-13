@@ -1,0 +1,45 @@
+---
+# enterprise-pentest-lab - Master playbook (idempotent)
+- name: Apply security baseline to all lab hosts
+  hosts: lab
+  become: true
+  gather_facts: true
+  roles:
+    - role: common
+      tags: [common, baseline]
+    - role: security_baseline
+      tags: [security_baseline, baseline]
+    - role: node_exporter
+      tags: [node_exporter, monitoring]
+
+- name: Configure Kali attacker workstation
+  hosts: kali
+  become: true
+  gather_facts: true
+  roles:
+    - role: kali
+      tags: [kali, attacker]
+
+- name: Configure Ubuntu practice target
+  hosts: ubuntu_target
+  become: true
+  gather_facts: true
+  roles:
+    - role: ubuntu_target
+      tags: [ubuntu_target, target]
+
+- name: Configure Windows Server placeholder
+  hosts: windows_server
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Deploy AD expansion placeholder marker
+      ansible.builtin.copy:
+        dest: /etc/enterprise-pentest-lab/ad-placeholder.conf
+        mode: "0644"
+        content: |
+          # Enterprise AD expansion placeholder
+          # Replace this host with ENABLE_WINDOWS_VM=true and dedicated AD roles
+          status=placeholder
+          future_roles=ad_dc,ad_dns,ad_ca
+      tags: [windows_server, placeholder]

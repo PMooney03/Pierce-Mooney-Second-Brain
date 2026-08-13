@@ -1,0 +1,29 @@
+# Include documentation
+include README.md
+include LICENSE
+include PROJECT_EXPLANATION.md
+include QUICK_START.md
+include USER_ACCESS.md
+
+# Include configuration files
+include pytest.ini
+include requirements.txt
+include requirements-test.txt
+
+# Include setup scripts
+include setup_venv.sh
+include setup_venv.ps1
+
+# Include Vagrant and Ansible files
+recursive-include vagrant *
+recursive-include ansible *
+recursive-include scripts *.sh
+recursive-include ai_assistant *.py *.txt *.json *.log *.md
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .git*
+global-exclude .pytest_cache
+global-exclude *.log
+global-exclude .vagrant

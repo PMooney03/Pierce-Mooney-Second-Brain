@@ -1,0 +1,49 @@
+[global]
+   workgroup = {{ samba_domain }}
+   realm = {{ samba_realm }}
+   server role = active directory domain controller
+   interfaces = lo {{ ansible_host }}
+   bind interfaces only = yes
+   server signing = auto
+   server schannel = auto
+   dns forwarder = {{ dns_forwarder }}
+   idmap_ldb:use rfc2307 = yes
+   map acl inherit = yes
+   store dos attributes = yes
+   vfs objects = acl_xattr
+   map acl inherit = yes
+   store dos attributes = yes
+   
+   # Security settings
+   restrict anonymous = 2
+   map to guest = never
+   server min protocol = SMB2
+   client min protocol = SMB2
+   client max protocol = SMB3
+   
+   # DNS settings
+   dns proxy = no
+   
+   # Logging
+   log level = 1
+   log file = /var/log/samba/%m.log
+   max log size = 50
+
+[netlogon]
+   path = /var/lib/samba/sysvol/{{ network_domain }}/scripts
+   read only = No
+   browseable = No
+
+[sysvol]
+   path = /var/lib/samba/sysvol
+   read only = No
+   browseable = No
+
+# Gateway proxy configuration
+[gateway]
+   path = /var/lib/samba/gateway
+   read only = No
+   browseable = Yes
+   valid users = @SME\\Domain Admins
+   create mask = 0640
+   directory mask = 0750 

@@ -1,0 +1,22 @@
+---
+ubuntu_hostname: ubuntu-target
+ubuntu_lab_ip: "192.168.56.20"
+
+# Intentionally weak practice accounts (LAB ONLY - isolated network)
+practice_users:
+  - name: labuser
+    password: "labuser123"
+    groups: [users]
+    shell: /bin/bash
+  - name: devops
+    password: "devops2024"
+    groups: [sudo]
+    shell: /bin/bash
+
+# Weak SSH configuration flags for training (lab isolated only)
+ssh_permit_root_login: "no"
+ssh_password_authentication: "yes"
+ssh_permit_empty_passwords: "no"
+
+# SUID practice binary placeholder path
+practice_suid_path: /usr/local/bin/lab-helper

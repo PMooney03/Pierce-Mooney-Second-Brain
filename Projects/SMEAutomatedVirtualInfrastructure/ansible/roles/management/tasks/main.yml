@@ -1,0 +1,277 @@
+---
+# Management role tasks with full recovery capabilities
+
+- name: Install management and recovery tools
+  apt:
+    name:
+      - ansible
+      - python3-pip
+      - git
+      - vim
+      - htop
+      - curl
+      - wget
+      - nmap
+      - netcat
+      - telnet
+      - rsync
+      - screen
+      - tmux
+      - jq
+      - bc
+      - mailutils
+      - postfix
+      - cron
+      - logwatch
+      - apache2
+      - apache2-utils
+    state: present
+  environment:
+    http_proxy: ""
+    https_proxy: ""
+    ftp_proxy: ""
+    HTTP_PROXY: ""
+    HTTPS_PROXY: ""
+    FTP_PROXY: ""
+
+- name: Install additional Python packages for monitoring
+  ansible.builtin.pip:
+    name:
+      - boto3
+      - paramiko
+      - requests
+      - psutil
+      - netifaces
+      - ping3
+      - schedule
+    state: present
+    executable: pip3
+
+- name: Create Ansible configuration
+  template:
+    src: ansible.cfg.j2
+    dest: /etc/ansible/ansible.cfg
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create comprehensive inventory
+  template:
+    src: hosts.j2
+    dest: /etc/ansible/hosts
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create management scripts directory
+  file:
+    path: /opt/sme/scripts
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create management config and docs directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /opt/sme/config
+    - /opt/sme/docs
+
+- name: Ensure Apache web root exists for monitoring dashboard
+  file:
+    path: /var/www/html
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Create health monitoring script
+  template:
+    src: health-monitor.py.j2
+    dest: /opt/sme/scripts/health-monitor.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create automated recovery script
+  template:
+    src: auto-recovery.sh.j2
+    dest: /opt/sme/scripts/auto-recovery.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create disaster recovery script
+  template:
+    src: disaster-recovery.sh.j2
+    dest: /opt/sme/scripts/disaster-recovery.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create backup automation script
+  template:
+    src: backup-automation.sh.j2
+    dest: /opt/sme/scripts/backup-automation.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create service recovery script
+  template:
+    src: service-recovery.sh.j2
+    dest: /opt/sme/scripts/service-recovery.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create network recovery script
+  template:
+    src: network-recovery.sh.j2
+    dest: /opt/sme/scripts/network-recovery.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create monitoring dashboard
+  template:
+    src: monitoring-dashboard.html.j2
+    dest: /var/www/html/monitoring-dashboard.html
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Create recovery status API
+  template:
+    src: recovery-api.py.j2
+    dest: /opt/sme/scripts/recovery-api.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Set up health monitoring service
+  template:
+    src: health-monitor.service.j2
+    dest: /etc/systemd/system/health-monitor.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Set up auto-recovery service
+  template:
+    src: auto-recovery.service.j2
+    dest: /etc/systemd/system/auto-recovery.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create recovery configuration
+  template:
+    src: recovery-config.json.j2
+    dest: /opt/sme/config/recovery-config.json
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create recovery logs directory
+  file:
+    path: /var/log/sme/recovery
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Set up cron jobs for automated monitoring
+  cron:
+    name: "{{ item.name }}"
+    minute: "{{ item.minute }}"
+    hour: "{{ item.hour }}"
+    job: "{{ item.job }}"
+    state: present
+  loop:
+    - {name: "Health Check", minute: "*/5", hour: "*", job: "/opt/sme/scripts/health-monitor.py --check"}
+    - {name: "Backup Check", minute: "0", hour: "2", job: "/opt/sme/scripts/backup-automation.sh --daily"}
+    - {name: "Recovery Test", minute: "0", hour: "6", job: "/opt/sme/scripts/disaster-recovery.sh --test"}
+
+- name: Enable and start monitoring services
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - health-monitor
+    - auto-recovery
+
+- name: Create admin user with recovery privileges
+  user:
+    name: "{{ admin_user | default('sme-admin') }}"
+    password: "{{ admin_password | default('Admin123!') | password_hash('sha512') }}"
+    shell: /bin/bash
+    groups: sudo
+    state: present
+
+- name: Configure sudo for admin user with recovery commands
+  lineinfile:
+    path: /etc/sudoers
+    line: "{{ admin_user | default('sme-admin') }} ALL=(ALL) NOPASSWD: /opt/sme/scripts/*"
+    state: present
+    validate: 'visudo -cf %s'
+
+- name: Create recovery documentation
+  template:
+    src: recovery-manual.md.j2
+    dest: /opt/sme/docs/recovery-manual.md
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure hostname resolution for all infrastructure hosts
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} SME Infrastructure Hosts"
+    block: |
+      # SME Infrastructure Hosts
+      192.168.56.3    fw-1
+      192.168.56.2    fw-2
+      192.168.56.10   dc-1
+      192.168.56.11   dc-2
+      192.168.56.20   filesrv-1
+      192.168.56.21   filesrv-2
+      192.168.56.30   web-1
+      192.168.56.31   web-2
+      192.168.56.40   monitor-1
+      192.168.56.41   log-1
+      192.168.56.50   mgmt-1
+      192.168.56.51   mgmt-2
+
+      # Alternative short names
+      192.168.56.3    fw1
+      192.168.56.2    fw2
+      192.168.56.10   dc1
+      192.168.56.11   dc2
+      192.168.56.20   fs1
+      192.168.56.21   fs2
+      192.168.56.30   web1
+      192.168.56.31   web2
+      192.168.56.40   mon1
+      192.168.56.41   log1
+      192.168.56.50   mgmt1
+      192.168.56.51   mgmt2
+    state: present
+
+- name: Test hostname resolution
+  command: ping -c 1 {{ item }}
+  register: ping_result
+  changed_when: false
+  failed_when: false
+  loop:
+    - dc-1
+    - dc-2
+    - web-1
+    - fw-1

@@ -1,0 +1,187 @@
+---
+# Common tasks for all servers
+
+- name: Update package cache (ignore proxy signing issues)
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+  register: common_apt_update
+  failed_when: >
+    common_apt_update is failed and
+    ('403  Forbidden' not in (common_apt_update.msg | default('')) and
+     'no longer signed' not in (common_apt_update.msg | default('')) and
+     'is not valid yet' not in (common_apt_update.msg | default('')))
+
+- name: Upgrade all packages
+  apt:
+    upgrade: true
+    autoremove: true
+
+- name: Install common packages
+  apt:
+    name:
+      - curl
+      - wget
+      - vim
+      - htop
+      - net-tools
+      - iputils-ping
+      - traceroute
+      - ntp
+      - ntpdate
+      - ufw
+      - fail2ban
+      - logrotate
+      - rsyslog
+    state: present
+
+- name: Configure timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Configure NTP servers
+  template:
+    src: ntp.conf.j2
+    dest: /etc/ntp.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart ntp
+
+- name: Configure SSH
+  template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0600'
+  notify: restart ssh
+  when: sme_hardening_enabled | bool
+
+# DC Gateway Architecture: Configure routing through domain controllers
+- name: Configure network routing through domain controllers
+  template:
+    src: network-routing.j2
+    dest: /etc/network/routing.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Check if /etc/network/interfaces exists (netplan systems use /etc/netplan instead)
+  stat:
+    path: /etc/network/interfaces
+  register: interfaces_file
+
+- name: Configure gateway settings
+  lineinfile:
+    path: /etc/network/interfaces
+    regexp: "^.*gateway.*$"
+    line: "    gateway 192.168.56.10"
+    state: present
+  when:
+    - "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+    - interfaces_file.stat.exists
+
+- name: Configure DNS to use domain controllers
+  lineinfile:
+    path: /etc/resolv.conf
+    regexp: "^nameserver.*$"
+    line: "nameserver 192.168.56.10"
+    state: present
+  when: "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Add secondary DNS server
+  lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver 192.168.56.11"
+    state: present
+  when: "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Configure proxy settings for web traffic
+  template:
+    src: proxy-settings.j2
+    dest: /etc/environment
+    owner: root
+    group: root
+    mode: '0644'
+  when: "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Configure basic firewall (only for non-firewall, non-DC hosts)
+  ufw:
+    state: enabled
+    policy: "{{ firewall_default_policy | default('deny') }}"
+    rule: allow
+    port: "{{ ssh_port }}"
+    from_ip: "{{ allowed_ssh_hosts }}"
+  when:
+    - sme_hardening_enabled | bool
+    - "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Block direct SSH access on non-DC hosts (enforce proxy routing)
+  ufw:
+    rule: deny
+    port: "{{ ssh_port }}"
+    from_ip: "{{ allowed_ssh_hosts }}"
+  when:
+    - sme_hardening_enabled | bool
+    - "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Allow SSH only from domain controllers
+  ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    from_ip: "192.168.56.10"
+  when:
+    - sme_hardening_enabled | bool
+    - "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Allow SSH from secondary domain controller
+  ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    from_ip: "192.168.56.11"
+  when:
+    - sme_hardening_enabled | bool
+    - "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+- name: Configure fail2ban
+  template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart fail2ban
+
+- name: Create admin user (skipped when central users are used)
+  user:
+    name: "{{ admin_user | default('sme-admin') }}"
+    password: "{{ admin_password | default('Admin123!') | password_hash('sha512') }}"
+    shell: /bin/bash
+    groups: sudo
+    state: present
+  when: not (sme_central_users_enabled | default(false) | bool)
+
+- name: Configure sudo for admin user (skipped when central users are used)
+  lineinfile:
+    path: /etc/sudoers
+    line: "{{ admin_user | default('sme-admin') }} ALL=(ALL) NOPASSWD:ALL"
+    state: present
+    validate: 'visudo -cf %s'
+  when: not (sme_central_users_enabled | default(false) | bool)
+
+- name: Create log directory
+  file:
+    path: /var/log/sme
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure logrotate for SME logs
+  template:
+    src: sme-logs.j2
+    dest: /etc/logrotate.d/sme-logs
+    owner: root
+    group: root
+    mode: '0644' 

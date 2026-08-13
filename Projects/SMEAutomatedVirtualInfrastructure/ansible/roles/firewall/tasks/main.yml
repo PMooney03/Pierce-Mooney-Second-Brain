@@ -1,0 +1,214 @@
+---
+# Firewall role tasks
+
+- name: Install firewall packages
+  apt:
+    name:
+      - iptables-persistent
+      - keepalived
+      - iputils-ping
+      - net-tools
+      - vlan
+    state: present
+
+- name: Stop and disable ufw (we'll use iptables directly)
+  service:
+    name: ufw
+    state: stopped
+    enabled: false
+
+- name: Flush existing iptables rules
+  iptables:
+    chain: "{{ item }}"
+    state: absent
+  loop:
+    - INPUT
+    - FORWARD
+    - OUTPUT
+
+- name: Set default policies
+  iptables:
+    chain: "{{ item.chain }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - {chain: INPUT, policy: DROP}
+    - {chain: FORWARD, policy: DROP}
+    - {chain: OUTPUT, policy: ACCEPT}
+
+- name: Allow loopback traffic
+  iptables:
+    chain: INPUT
+    in_interface: lo
+    jump: ACCEPT
+
+- name: Allow established connections
+  iptables:
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+
+- name: Allow ICMP (ping)
+  iptables:
+    chain: INPUT
+    protocol: icmp
+    jump: ACCEPT
+
+- name: Allow SSH from internal network
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ ssh_port }}"
+    source: "{{ allowed_ssh_hosts }}"
+    jump: ACCEPT
+
+- name: Allow SSH proxy access to domain controllers
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 2222
+    source: "{{ allowed_ssh_hosts }}"
+    jump: ACCEPT
+
+- name: Block direct SSH access to non-domain-controller hosts (enforce proxy routing)
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ ssh_port }}"
+    source: "{{ allowed_ssh_hosts }}"
+    jump: DROP
+  when: "'domain_controllers' not in group_names"
+
+- name: Allow SSH forwarding through domain controllers
+  iptables:
+    chain: FORWARD
+    protocol: tcp
+    destination_port: "{{ ssh_port }}"
+    source: "{{ item }}"
+    jump: ACCEPT
+  loop:
+    - "192.168.56.10"  # dc-1
+    - "192.168.56.11"  # dc-2
+
+- name: Allow HTTP traffic
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 80
+    jump: ACCEPT
+
+- name: Allow HTTPS traffic
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 443
+    jump: ACCEPT
+
+- name: Allow Prometheus scraping from monitor server
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 9100
+    source: "192.168.56.40"
+    jump: ACCEPT
+
+- name: Allow VRRP traffic
+  iptables:
+    chain: INPUT
+    protocol: vrrp
+    jump: ACCEPT
+
+- name: Allow multicast traffic for VRRP
+  iptables:
+    chain: INPUT
+    protocol: udp
+    destination: 224.0.0.18
+    jump: ACCEPT
+
+# DC Gateway Architecture: Route internal traffic through domain controllers
+- name: Allow traffic from internal network to domain controllers
+  iptables:
+    chain: FORWARD
+    source: "{{ network_subnet }}"
+    destination: "{{ item }}"
+    jump: ACCEPT
+  loop:
+    - "192.168.56.10"  # dc-1
+    - "192.168.56.11"  # dc-2
+
+- name: Allow traffic from domain controllers to internet
+  iptables:
+    chain: FORWARD
+    source: "{{ item }}"
+    out_interface: eth0
+    jump: ACCEPT
+  loop:
+    - "192.168.56.10"  # dc-1
+    - "192.168.56.11"  # dc-2
+
+- name: Allow return traffic from internet to domain controllers
+  iptables:
+    chain: FORWARD
+    destination: "{{ item }}"
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  loop:
+    - "192.168.56.10"  # dc-1
+    - "192.168.56.11"  # dc-2
+
+- name: Allow return traffic from domain controllers to internal network
+  iptables:
+    chain: FORWARD
+    source: "{{ item }}"
+    destination: "{{ network_subnet }}"
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  loop:
+    - "192.168.56.10"  # dc-1
+    - "192.168.56.11"  # dc-2
+
+# NAT configuration for domain controllers
+- name: Configure NAT for domain controllers
+  iptables:
+    chain: POSTROUTING
+    table: nat
+    out_interface: eth0
+    source: "{{ item }}"
+    jump: MASQUERADE
+  loop:
+    - "192.168.56.10"  # dc-1
+    - "192.168.56.11"  # dc-2
+
+- name: Save iptables rules
+  shell: iptables-save > /etc/iptables/rules.v4
+  args:
+    creates: /etc/iptables/rules.v4
+
+- name: Configure keepalived
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart keepalived
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: true
+
+- name: Enable and start keepalived
+  service:
+    name: keepalived
+    state: started
+    enabled: true
+
+- name: Create firewall status script
+  template:
+    src: firewall-status.sh.j2
+    dest: /usr/local/bin/firewall-status
+    owner: root
+    group: root
+    mode: '0755' 

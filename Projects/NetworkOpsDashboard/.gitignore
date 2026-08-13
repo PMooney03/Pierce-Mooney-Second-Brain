@@ -1,0 +1,37 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Backend (Maven / Java)
+backend/target/
+*.class
+hs_err_pid*
+replay_pid*
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+
+# Logs / OS
+logs/
+*.log
+tmp/
+temp/
+
+# Docker
+docker-compose.override.yml

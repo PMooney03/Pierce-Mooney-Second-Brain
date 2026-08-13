@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SME Gateway Status - {{ inventory_hostname }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2937; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem 1.25rem; max-width: 900px; }
+    h1 { margin-top: 0; }
+    code { background: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>SME Gateway Status</h1>
+    <p><strong>Host:</strong> {{ inventory_hostname }}</p>
+    <p><strong>Domain:</strong> {{ network_domain }}</p>
+    <p><strong>Subnet:</strong> {{ network_subnet }}</p>
+    <p><strong>Forward DNS:</strong> {{ dns_forwarder | default('8.8.8.8') }}</p>
+    <p><strong>Updated:</strong> {{ ansible_date_time.iso8601 if ansible_date_time is defined else 'n/a' }}</p>
+    <p>Run <code>sudo /usr/local/bin/gateway-monitor</code> logs with <code>journalctl -u gateway-monitor</code>.</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Runtime dependencies for SME Starter Infrastructure CLI
+flask>=2.3.0
+# Pin Ansible 6.x (ansible-core 2.13): 2.14+ uses os.get_blocking() which is not on Windows until Python 3.12
+ansible>=6.0.0,<7.0.0

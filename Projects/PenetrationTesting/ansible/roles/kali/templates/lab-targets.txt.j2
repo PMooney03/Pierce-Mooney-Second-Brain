@@ -1,0 +1,10 @@
+# {{ lab_name }} - Lab Target Reference
+# Network: {{ lab_network_cidr }}
+
+{% for target in kali_targets %}
+{% if target.ip is defined %}
+{{ target.name }}: {{ target.ip }} ({{ target.services | join(', ') }})
+{% else %}
+{{ target.name }}: {{ target.host }}:{{ target.port }}
+{% endif %}
+{% endfor %}

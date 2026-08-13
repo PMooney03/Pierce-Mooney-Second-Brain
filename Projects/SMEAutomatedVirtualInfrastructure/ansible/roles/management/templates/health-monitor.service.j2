@@ -1,0 +1,11 @@
+[Unit]
+Description=SME Health Monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sme/scripts/health-monitor.py --daemon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

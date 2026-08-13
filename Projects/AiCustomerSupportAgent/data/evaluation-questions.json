@@ -1,0 +1,63 @@
+[
+  {
+    "id": 1,
+    "question": "What is your refund policy for Pro?",
+    "expectedContains": ["30", "refund", "money-back"],
+    "notes": "Should reference 30-day guarantee and Pro only"
+  },
+  {
+    "id": 2,
+    "question": "How much storage does the Free plan include?",
+    "expectedContains": ["5 GB", "5"],
+    "notes": "Free plan is 5 GB"
+  },
+  {
+    "id": 3,
+    "question": "How do I cancel my subscription?",
+    "expectedContains": ["Cancel", "Account", "billing period"],
+    "notes": "Cancellation path and end-of-period access"
+  },
+  {
+    "id": 4,
+    "question": "Do you support cryptocurrency payments?",
+    "evalType": "refusal",
+    "expectedContains": [],
+    "notes": "Should decline — not in KB; must not invent a crypto policy"
+  },
+  {
+    "id": 5,
+    "question": "What are your support hours for live chat?",
+    "expectedContains": ["Monday", "Friday", "Eastern"],
+    "notes": "Pro/Team live chat hours"
+  },
+  {
+    "id": 6,
+    "question": "What is the single file upload size limit?",
+    "expectedContains": ["5 GB"],
+    "notes": "5 GB on all plans"
+  },
+  {
+    "id": 7,
+    "question": "How long is version history kept on Pro?",
+    "expectedContains": ["30"],
+    "notes": "30 days on Pro"
+  },
+  {
+    "id": 8,
+    "question": "What uptime SLA does Team get?",
+    "expectedContains": ["99.9"],
+    "notes": "Team SLA section"
+  },
+  {
+    "id": 9,
+    "question": "My files are not syncing. What should I check first?",
+    "expectedContains": ["network", "sign"],
+    "expectedContainsAny": [
+      ["signed in", "network", "quota"],
+      ["sign in", "network", "quota"],
+      ["signed in", "network", "storage"],
+      ["network", "connectivity", "sign"]
+    ],
+    "notes": "Sync troubleshooting: sign-in, network, quota per KB"
+  }
+]

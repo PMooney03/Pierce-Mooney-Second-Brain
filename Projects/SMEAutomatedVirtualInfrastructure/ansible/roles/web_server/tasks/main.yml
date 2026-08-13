@@ -1,0 +1,5 @@
+---
+# Stub role for web servers (nginx configured by Vagrant bootstrap)
+- name: Web server role placeholder
+  debug:
+    msg: "Web server config applied by bootstrap; extend this role as needed."

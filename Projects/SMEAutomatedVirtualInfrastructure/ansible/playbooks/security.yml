@@ -1,0 +1,132 @@
+---
+# Security hardening playbook for SME Infrastructure
+- name: Security Hardening
+  hosts: all_servers
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Update security packages
+      apt:
+        update_cache: true
+        upgrade: dist
+        autoremove: true
+      when: ansible_os_family == "Debian"
+
+    - name: Configure SSH security
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: "^#?PermitRootLogin", line: "PermitRootLogin no" }
+        - { regexp: "^#?PasswordAuthentication", line: "PasswordAuthentication yes" }
+        - { regexp: "^#?PubkeyAuthentication", line: "PubkeyAuthentication yes" }
+        - { regexp: "^#?MaxAuthTries", line: "MaxAuthTries 3" }
+        - { regexp: "^#?ClientAliveInterval", line: "ClientAliveInterval 300" }
+        - { regexp: "^#?ClientAliveCountMax", line: "ClientAliveCountMax 2" }
+      notify: restart ssh
+
+    - name: Configure firewall rules
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        from_ip: "{{ allowed_ssh_hosts }}"
+      loop:
+        - "22"
+        - "80"
+        - "443"
+      when: "'firewalls' not in group_names"
+
+    - name: Configure fail2ban
+      template:
+        src: jail.local.j2
+        dest: /etc/fail2ban/jail.local
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart fail2ban
+
+    - name: Set secure file permissions
+      file:
+        path: "{{ item }}"
+        mode: "{{ item.mode }}"
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+      loop:
+        - { path: "/etc/passwd", mode: "0644", owner: "root", group: "root" }
+        - { path: "/etc/shadow", mode: "0600", owner: "root", group: "root" }
+        - { path: "/etc/group", mode: "0644", owner: "root", group: "root" }
+        - { path: "/etc/gshadow", mode: "0600", owner: "root", group: "root" }
+
+    - name: Disable unnecessary services
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - "rpcbind"
+        - "rpcbind.socket"
+        - "rpc.statd"
+      when: ansible_os_family == "Debian"
+
+    - name: Configure system limits
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "* soft nofile 65536"
+        - "* hard nofile 65536"
+        - "* soft nproc 32768"
+        - "* hard nproc 32768"
+
+    - name: Configure kernel parameters
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+      loop:
+        - { name: "net.ipv4.tcp_syncookies", value: "1" }
+        - { name: "net.ipv4.ip_forward", value: "0" }
+        - { name: "net.ipv4.conf.all.accept_redirects", value: "0" }
+        - { name: "net.ipv4.conf.default.accept_redirects", value: "0" }
+        - { name: "net.ipv4.conf.all.secure_redirects", value: "0" }
+        - { name: "net.ipv4.conf.default.secure_redirects", value: "0" }
+      when: "'firewalls' not in group_names"
+
+- name: Domain Controller Security
+  hosts: domain_controllers
+  become: true
+  
+  tasks:
+    - name: Configure Samba security
+      lineinfile:
+        path: /etc/samba/smb.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: "^restrict anonymous", line: "restrict anonymous = 2" }
+        - { regexp: "^map to guest", line: "map to guest = never" }
+        - { regexp: "^server signing", line: "server signing = mandatory" }
+      notify: restart smbd
+
+- name: Web Server Security
+  hosts: web_servers
+  become: true
+  
+  tasks:
+    - name: Configure Apache security headers
+      lineinfile:
+        path: /etc/apache2/conf-available/security.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: "^ServerTokens", line: "ServerTokens Prod" }
+        - { regexp: "^ServerSignature", line: "ServerSignature Off" }
+        - { regexp: "^TraceEnable", line: "TraceEnable Off" }
+      notify: restart apache2 

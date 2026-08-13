@@ -1,0 +1,22 @@
+# Proxy Settings for SME Infrastructure
+# All web traffic goes through domain controller gateway
+
+# HTTP Proxy
+http_proxy=http://192.168.56.10:3128
+HTTP_PROXY=http://192.168.56.10:3128
+
+# HTTPS Proxy
+https_proxy=http://192.168.56.10:3128
+HTTPS_PROXY=http://192.168.56.10:3128
+
+# FTP Proxy
+ftp_proxy=http://192.168.56.10:3128
+FTP_PROXY=http://192.168.56.10:3128
+
+# No proxy for local addresses
+no_proxy=localhost,127.0.0.1,192.168.56.0/24,{{ network_domain }}
+NO_PROXY=localhost,127.0.0.1,192.168.56.0/24,{{ network_domain }}
+
+# Proxy authentication (if needed)
+# http_proxy_user=username
+# http_proxy_pass=password 

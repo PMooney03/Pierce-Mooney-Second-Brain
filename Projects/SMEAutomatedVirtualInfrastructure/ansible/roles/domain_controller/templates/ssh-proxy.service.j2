@@ -1,0 +1,15 @@
+[Unit]
+Description=SSH Proxy Service for SME Infrastructure
+After=network.target ssh.service
+Wants=network.target
+
+[Service]
+Type=notify
+ExecStart=/usr/sbin/sshd -D -f /etc/ssh/sshd_proxy_config
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=42s
+
+[Install]
+WantedBy=multi-user.target 

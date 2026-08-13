@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SME Starter Infrastructure — Control Plane</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script>
+    (function(){
+      var v = localStorage.getItem('sme-theme');
+      if (v === 'dark' || (v !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.setAttribute('data-theme', 'dark');
+      else
+        document.documentElement.setAttribute('data-theme', 'light');
+    })();
+  </script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <h1 class="app-title">SME Starter Infrastructure</h1>
+      <nav class="header-nav">
+        {% if username %}
+        <span class="header-user">Logged in as <strong>{{ username }}</strong> <span class="header-role">({{ role }})</span></span>
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        {% if role == 'admin' %}
+        <a href="{{ url_for('presets_page') }}">Presets</a>
+        {% endif %}
+        <details class="nav-dropdown">
+          <summary>Account</summary>
+          <div class="nav-dropdown-menu">
+            {% if role == 'admin' %}
+            <a href="{{ url_for('admin_users') }}">Manage users</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+          </div>
+        </details>
+        {% endif %}
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle light/dark mode"><span class="theme-icon theme-icon-moon" aria-hidden="true">&#9790;</span><span class="theme-icon theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-label theme-label-dark">Dark</span><span class="theme-label theme-label-light">Light</span></button>
+      </nav>
+    </div>
+  </header>
+  <script>
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('sme-theme', next);
+    });
+  </script>
+  <script>window.GUI_USER = { "username": {{ username|tojson }}, "role": {{ role|tojson }} };</script>
+
+  <main class="app-main">
+    <section class="panel panel-prereqs">
+      <h2 class="panel-title">Prerequisites</h2>
+      <div id="prereqs-result" class="prereqs-result" aria-live="polite">Checking…</div>
+    </section>
+
+    <section class="panel panel-status">
+      <div class="panel-head">
+        <h2 class="panel-title">VM Status</h2>
+        <div class="panel-actions">
+          <label class="toggle-refresh">
+            <input type="checkbox" id="include-provisioning" />
+            <span>Include provisioning</span>
+          </label>
+          <label class="toggle-refresh">
+            <input type="checkbox" id="auto-refresh" />
+            <span>Auto-refresh (5m)</span>
+          </label>
+          <button type="button" id="btn-status" class="btn btn-secondary">Refresh</button>
+        </div>
+      </div>
+      <p class="panel-desc">Check "Include provisioning" to see Ready/Provisioning per VM (slower; can take a few minutes with many VMs).</p>
+      <div id="status-result" class="status-table-wrap">Loading…</div>
+      <p class="hint">SSH from project root: <code>sme-ssh &lt;host&gt;</code> (e.g. <code>sme-ssh dc-1</code>)</p>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <span>Vagrant + VirtualBox</span>
+  </footer>
+
+  <div id="modal-overlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <h3 id="modal-title" class="modal-title">Confirm</h3>
+      <p id="modal-body" class="modal-body"></p>
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="modal-confirm" class="btn btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="start-choice-overlay" class="modal-overlay" hidden>
+    <div class="modal modal-start-choice">
+      <h3 id="start-choice-title" class="modal-title">Start preset</h3>
+      <p class="modal-body">How do you want to start?</p>
+      <div class="modal-actions modal-actions-start">
+        <button type="button" id="start-choice-cancel" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="start-choice-quickboot" class="btn btn-primary">Quickboot (No feedback)</button>
+        <button type="button" id="start-choice-debugboot" class="btn btn-secondary">Debugboot (Feedback but much slower)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+#
+# Kerberos configuration for SME domain controllers
+#
+[libdefaults]
+    default_realm = {{ samba_realm | default('SME.LOCAL') }}
+    dns_lookup_realm = true
+    dns_lookup_kdc = true
+    ticket_lifetime = 24h
+    renew_lifetime = 7d
+    forwardable = true
+
+[realms]
+    {{ samba_realm | default('SME.LOCAL') }} = {
+        kdc = dc-1.{{ network_domain | default('sme.local') }}
+{% if dc_role == 'SECONDARY' %}
+        kdc = dc-2.{{ network_domain | default('sme.local') }}
+{% endif %}
+        admin_server = dc-1.{{ network_domain | default('sme.local') }}
+    }
+
+[domain_realm]
+    .{{ network_domain | default('sme.local') }} = {{ samba_realm | default('SME.LOCAL') }}
+    {{ network_domain | default('sme.local') }} = {{ samba_realm | default('SME.LOCAL') }}
+

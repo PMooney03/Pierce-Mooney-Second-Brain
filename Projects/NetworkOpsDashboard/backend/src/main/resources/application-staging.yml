@@ -1,0 +1,11 @@
+# Staging profile — values come from environment / secrets, never from Git.
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+logging:
+  level:
+    com.networkops.dashboard: INFO

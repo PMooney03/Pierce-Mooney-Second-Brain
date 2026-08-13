@@ -1,0 +1,107 @@
+# -*- mode: ruby -*-
+# enterprise-pentest-lab - Vagrant infrastructure definition
+# Isolated host-only networking (192.168.56.0/24) - no bridged adapters
+
+Vagrant.configure("2") do |config|
+  # Shared provider settings
+  config.vm.provider "virtualbox" do |vb|
+    vb.gui     = false
+    vb.check_guest_additions = false
+  end
+
+  # Project sync — required for ansible_local (playbooks under /vagrant/ansible)
+  config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
+
+  # ---------------------------------------------------------------------------
+  # kali-attacker - Offensive security workstation
+  # ---------------------------------------------------------------------------
+  config.vm.define "kali-attacker" do |kali|
+    kali.vm.box         = "kalilinux/rolling"
+    kali.vm.hostname    = "kali-attacker"
+    kali.vm.network "private_network", ip: "192.168.56.10"
+
+    kali.vm.provider "virtualbox" do |vb|
+      vb.name   = "enterprise-pentest-kali-attacker"
+      vb.memory = 4096
+      vb.cpus   = 2
+    end
+
+    kali.vm.provision "shell", path: "vagrant/scripts/bootstrap.sh", args: ["kali-attacker"]
+    kali.vm.provision "ansible_local" do |ansible|
+      ansible.playbook = "ansible/site.yml"
+      ansible.inventory_path = "ansible/inventory.vagrant.local.ini"
+      ansible.limit = "kali"
+      ansible.become = true
+      ansible.compatibility_mode = "2.0"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # ubuntu-target - Linux enumeration / privesc practice target
+  # ---------------------------------------------------------------------------
+  config.vm.define "ubuntu-target" do |ubuntu|
+    ubuntu.vm.box      = "generic/ubuntu2204"
+    ubuntu.vm.hostname = "ubuntu-target"
+    ubuntu.vm.network "private_network", ip: "192.168.56.20"
+
+    ubuntu.vm.provider "virtualbox" do |vb|
+      vb.name   = "enterprise-pentest-ubuntu-target"
+      vb.memory = 2048
+      vb.cpus   = 2
+    end
+
+    ubuntu.vm.provision "shell", path: "vagrant/scripts/bootstrap.sh", args: ["ubuntu-target"]
+    ubuntu.vm.provision "ansible_local" do |ansible|
+      ansible.playbook = "ansible/site.yml"
+      ansible.inventory_path = "ansible/inventory.vagrant.local.ini"
+      ansible.limit = "ubuntu_target"
+      ansible.become = true
+      ansible.compatibility_mode = "2.0"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # windows-server - Enterprise AD placeholder (modular expansion point)
+  # Set ENABLE_WINDOWS_VM=true for full Windows Server eval box (see README)
+  # ---------------------------------------------------------------------------
+  config.vm.define "windows-server" do |win|
+    if ENV["ENABLE_WINDOWS_VM"] == "true"
+      win.vm.box      = "gusztavvargadr/windows-server-2022-standard-core"
+      win.vm.hostname = "windows-server"
+      win.vm.communicator = "winrm"
+      win.vm.network "private_network", ip: "192.168.56.30"
+
+      win.vm.provider "virtualbox" do |vb|
+        vb.name   = "enterprise-pentest-windows-server"
+        vb.memory = 4096
+        vb.cpus   = 2
+      end
+
+      win.winrm.username = "vagrant"
+      win.winrm.password = "vagrant"
+      win.winrm.timeout  = 1800
+
+      win.vm.provision "shell", path: "vagrant/scripts/bootstrap-windows.ps1"
+    else
+      # Lightweight structural placeholder until full AD expansion
+      win.vm.box      = "generic/ubuntu2204"
+      win.vm.hostname = "windows-server"
+      win.vm.network "private_network", ip: "192.168.56.30"
+
+      win.vm.provider "virtualbox" do |vb|
+        vb.name   = "enterprise-pentest-windows-placeholder"
+        vb.memory = 1024
+        vb.cpus   = 1
+      end
+
+      win.vm.provision "shell", path: "vagrant/scripts/bootstrap.sh", args: ["windows-server"]
+      win.vm.provision "ansible_local" do |ansible|
+        ansible.playbook = "ansible/site.yml"
+        ansible.inventory_path = "ansible/inventory.vagrant.local.ini"
+        ansible.limit = "windows_server"
+        ansible.become = true
+        ansible.compatibility_mode = "2.0"
+      end
+    end
+  end
+end

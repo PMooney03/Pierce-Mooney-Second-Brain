@@ -1,0 +1,80 @@
+# SSH Configuration for SME Infrastructure
+
+# Port configuration
+Port {{ ssh_port }}
+
+# Protocol configuration
+Protocol 2
+
+# Host key files
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Privilege separation
+UsePrivilegeSeparation yes
+
+# Key regeneration
+KeyRegenerationInterval 3600
+ServerKeyBits 1024
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO
+
+# Authentication
+LoginGraceTime 120
+PermitRootLogin no
+StrictModes yes
+RSAAuthentication yes
+PubkeyAuthentication yes
+AuthorizedKeysFile %h/.ssh/authorized_keys
+
+# Ignore Rhosts
+IgnoreRhosts yes
+RhostsRSAAuthentication no
+HostbasedAuthentication no
+
+# Disable empty passwords
+PermitEmptyPasswords no
+
+# Challenge response authentication
+ChallengeResponseAuthentication no
+
+# Password authentication
+PasswordAuthentication yes
+
+# Kerberos options
+KerberosAuthentication no
+KerberosOrLocalPasswd yes
+KerberosTicketCleanup yes
+
+# GSSAPI options
+GSSAPIAuthentication no
+GSSAPICleanupCredentials yes
+
+# X11 forwarding
+X11Forwarding yes
+X11DisplayOffset 10
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive yes
+
+# Max sessions
+MaxStartups 10:30:60
+
+# Banner
+Banner /etc/issue.net
+
+# Allow client to pass locale environment variables
+AcceptEnv LANG LC_*
+
+# Subsystem sftp
+Subsystem sftp /usr/lib/openssh/sftp-server
+
+# UsePAM
+UsePAM yes
+
+# Allow specific users/groups
+AllowUsers vagrant {{ admin_user | default('sme-admin') }}
+AllowGroups sudo 

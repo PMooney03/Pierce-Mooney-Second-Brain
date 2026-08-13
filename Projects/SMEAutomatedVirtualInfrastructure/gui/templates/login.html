@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SME Starter Infrastructure – Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    (function(){
+      var v = localStorage.getItem('sme-theme');
+      if (v === 'dark' || (v !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.setAttribute('data-theme', 'dark');
+      else
+        document.documentElement.setAttribute('data-theme', 'light');
+    })();
+  </script>
+</head>
+<body class="login-page">
+  <div class="theme-toggle-wrap">
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle light/dark mode"><span class="theme-icon theme-icon-moon" aria-hidden="true">&#9790;</span><span class="theme-icon theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-label theme-label-dark">Dark</span><span class="theme-label theme-label-light">Light</span></button>
+  </div>
+  <script>
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('sme-theme', next);
+    });
+  </script>
+  <main class="app-main">
+    <section class="panel login-panel">
+      <h2 class="panel-title">Sign in</h2>
+      <p class="login-hint">
+        Sign in with your username and password.
+      </p>
+      {% if error %}
+        <p class="login-error">{{ error }}</p>
+      {% endif %}
+      <form method="post" class="login-form">
+        <input type="hidden" name="next" value="{{ next_url|default('', true) }}">
+        <label class="login-label">
+          <span>Username</span>
+          <input type="text" name="username" autocomplete="username" required>
+        </label>
+        <label class="login-label">
+          <span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

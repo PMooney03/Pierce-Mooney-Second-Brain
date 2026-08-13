@@ -1,0 +1,29 @@
+[
+  {"name": "The Shelbourne", "city_name": "Dublin", "city_country": "Ireland", "latitude": 53.3389, "longitude": -6.2591, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Restaurant, Bar, Wi-Fi"},
+  {"name": "Clayton Hotel Dublin", "city_name": "Dublin", "city_country": "Ireland", "latitude": 53.3493, "longitude": -6.2606, "star_rating": 4, "price_range": "moderate", "amenities": "Restaurant, Gym, Wi-Fi"},
+  {"name": "Temple Bar Inn", "city_name": "Dublin", "city_country": "Ireland", "latitude": 53.3455, "longitude": -6.2644, "star_rating": 3, "price_range": "budget", "amenities": "Bar, Wi-Fi, Breakfast"},
+
+  {"name": "The Ritz London", "city_name": "London", "city_country": "United Kingdom", "latitude": 51.5074, "longitude": -0.1416, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Afternoon Tea, Concierge"},
+  {"name": "Premier Inn London City", "city_name": "London", "city_country": "United Kingdom", "latitude": 51.5155, "longitude": -0.0922, "star_rating": 3, "price_range": "moderate", "amenities": "Wi-Fi, Breakfast"},
+  {"name": "Palace Inn Westminster", "city_name": "London", "city_country": "United Kingdom", "latitude": 51.4995, "longitude": -0.1248, "star_rating": 4, "price_range": "moderate", "amenities": "Restaurant, Bar, Wi-Fi"},
+
+  {"name": "Le Grand Hotel Paris", "city_name": "Paris", "city_country": "France", "latitude": 48.8738, "longitude": 2.2950, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Pool, Michelin restaurant"},
+  {"name": "Hotel des Grands Boulevards", "city_name": "Paris", "city_country": "France", "latitude": 48.8719, "longitude": 2.3470, "star_rating": 4, "price_range": "moderate", "amenities": "Restaurant, Bar, Wi-Fi"},
+  {"name": "City Lodge Paris", "city_name": "Paris", "city_country": "France", "latitude": 48.8566, "longitude": 2.3522, "star_rating": 3, "price_range": "budget", "amenities": "Wi-Fi, Breakfast"},
+
+  {"name": "Hotel Adlon Kempinski", "city_name": "Berlin", "city_country": "Germany", "latitude": 52.5160, "longitude": 13.3807, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Pool, Restaurant"},
+  {"name": "Motel One Berlin", "city_name": "Berlin", "city_country": "Germany", "latitude": 52.5208, "longitude": 13.4094, "star_rating": 3, "price_range": "moderate", "amenities": "Bar, Wi-Fi"},
+  {"name": "Grand Hotel Berlin Mitte", "city_name": "Berlin", "city_country": "Germany", "latitude": 52.5244, "longitude": 13.4105, "star_rating": 4, "price_range": "moderate", "amenities": "Restaurant, Gym, Wi-Fi"},
+
+  {"name": "Hotel Ritz Madrid", "city_name": "Madrid", "city_country": "Spain", "latitude": 40.4154, "longitude": -3.6926, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Restaurant, Terrace"},
+  {"name": "Ibis Madrid Centro", "city_name": "Madrid", "city_country": "Spain", "latitude": 40.4168, "longitude": -3.7038, "star_rating": 3, "price_range": "budget", "amenities": "Wi-Fi, Breakfast"},
+  {"name": "Palace Inn Madrid", "city_name": "Madrid", "city_country": "Spain", "latitude": 40.4195, "longitude": -3.6919, "star_rating": 4, "price_range": "moderate", "amenities": "Bar, Restaurant, Wi-Fi"},
+
+  {"name": "Hotel de Russie Rome", "city_name": "Rome", "city_country": "Italy", "latitude": 41.9065, "longitude": 12.4778, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Garden, Restaurant"},
+  {"name": "Hotel Artemide", "city_name": "Rome", "city_country": "Italy", "latitude": 41.9028, "longitude": 12.4964, "star_rating": 4, "price_range": "moderate", "amenities": "Rooftop bar, Wi-Fi"},
+  {"name": "City Lodge Rome", "city_name": "Rome", "city_country": "Italy", "latitude": 41.8955, "longitude": 12.4823, "star_rating": 3, "price_range": "budget", "amenities": "Wi-Fi, Breakfast"},
+
+  {"name": "Waldorf Astoria Amsterdam", "city_name": "Amsterdam", "city_country": "Netherlands", "latitude": 52.3667, "longitude": 4.8945, "star_rating": 5, "price_range": "luxury", "amenities": "Spa, Canal views, Restaurant"},
+  {"name": "NH Amsterdam Centre", "city_name": "Amsterdam", "city_country": "Netherlands", "latitude": 52.3676, "longitude": 4.9041, "star_rating": 4, "price_range": "moderate", "amenities": "Bar, Wi-Fi"},
+  {"name": "Budget Hostel Amsterdam", "city_name": "Amsterdam", "city_country": "Netherlands", "latitude": 52.3702, "longitude": 4.8952, "star_rating": 2, "price_range": "budget", "amenities": "Wi-Fi, Shared kitchen"}
+]

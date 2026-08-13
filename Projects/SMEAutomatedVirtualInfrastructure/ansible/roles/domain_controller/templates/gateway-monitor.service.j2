@@ -1,0 +1,13 @@
+[Unit]
+Description=SME Gateway Connectivity Monitor
+After=network-online.target squid.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gateway-monitor
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

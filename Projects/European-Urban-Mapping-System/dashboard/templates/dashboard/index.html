@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="description" content="Location-based services application for exploring cities, regions, and hotels worldwide">
+    <meta name="theme-color" content="#3498db">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="World Mapping">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    
+    <!-- Icons for various devices -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512x512.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    
+    <title>World Mapping Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}" />
+    <!-- Style block moved to external CSS file -->
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ World Urban Mapping System</h1>
+        <div class="nav-menu">
+            <a href="/" class="nav-link">Dashboard</a>
+            <a href="/api/cities/" class="nav-link">API - Cities</a>
+            <a href="/api/regions/" class="nav-link">API - Regions</a>
+            <a href="/admin/" class="nav-link">Admin</a>
+            <button id="install-btn" class="nav-link" style="display: none; background: transparent; border: 1px solid white; cursor: pointer;">📱 Install App</button>
+        </div>
+    </div>
+    <div class="container">
+        <div class="sidebar">
+            <div class="feature-toggles">
+                <button class="toggle-btn active" onclick="toggleFeature('filter')" id="toggle-filter">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">🏙️ Filter Cities</span>
+                </button>
+                <button class="toggle-btn" onclick="toggleFeature('proximity')" id="toggle-proximity">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">📍 Proximity</span>
+                </button>
+                <button class="toggle-btn" onclick="toggleFeature('regions')" id="toggle-regions">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">🗺️ Regions</span>
+                </button>
+                <button class="toggle-btn" onclick="toggleFeature('hotels')" id="toggle-hotels">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">🏨 Hotels</span>
+                </button>
+                <button class="toggle-btn" onclick="toggleFeature('landmarks')" id="toggle-landmarks">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">⭐ Landmarks</span>
+                </button>
+                <button class="toggle-btn" onclick="toggleFeature('allpois')" id="toggle-allpois">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">🌍 All POIs</span>
+                </button>
+                <button class="toggle-btn" onclick="toggleFeature('stats')" id="toggle-stats">
+                    <span class="toggle-icon">✓</span> 
+                    <span class="toggle-btn-text">📊 Stats</span>
+                </button>
+            </div>
+
+            <div id="filter-tab" class="tab-content active">
+                <div class="controls">
+                    <h3>🔍 Search & Filter Cities</h3>
+                    <p class="info-text">Find cities by name, country, population, or type</p>
+                    
+                    <!-- Quick Search -->
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label>Quick Search:</label>
+                        <input type="text" id="quick-search" placeholder="Search by city or country name..." 
+                               style="padding: 0.875rem; font-size: 1rem;" 
+                               onkeyup="if(event.key === 'Enter') quickSearchCities()">
+                        <button onclick="quickSearchCities()" style="margin-top: 0.5rem; width: 100%;">🔍 Search</button>
+                    </div>
+                    
+                    <div style="border-top: 2px solid #e0e0e0; padding-top: 1rem; margin-top: 1rem;">
+                        <h4 style="color: #2c3e50; font-size: 0.95rem; margin-bottom: 0.75rem; font-weight: 600;">Advanced Filters</h4>
+                        
+                        <div class="form-group">
+                            <label>Country:</label>
+                            <input type="text" id="country" placeholder="e.g., France, Nigeria, United States">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label>Min Population:</label>
+                                <input type="number" id="pop-min" value="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Population:</label>
+                                <input type="number" id="pop-max" value="" placeholder="No limit">
+                    </div>
+                    </div>
+                        
+                    <div class="form-group">
+                        <label>City Type:</label>
+                        <select id="city-type">
+                            <option value="">All Types</option>
+                                <option value="capital">👑 Capital Cities</option>
+                                <option value="major">🏙️ Major Cities</option>
+                                <option value="regional">🏘️ Regional Cities</option>
+                                <option value="town">🏡 Towns</option>
+                        </select>
+                    </div>
+                    </div>
+                    
+                    <button onclick="loadCities()" style="margin-top: 1rem;">🔍 Apply Filters</button>
+                    <button onclick="clearMarkers()" class="btn-danger" style="margin-top: 0.5rem;">🗑️ Clear Map</button>
+                </div>
+            </div>
+
+            <div id="proximity-tab" class="tab-content">
+                <div class="controls">
+                    <h3>📍 Proximity Search</h3>
+                    <p class="info-text">Find everything nearby: cities, hotels, shops, restaurants, and more within a radius</p>
+                    
+                    <!-- Location Selection -->
+                    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 2px solid #90caf9;">
+                        <h4 style="color: #1565c0; font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 600;">📍 Select Location</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem;">Latitude:</label>
+                                <input type="number" id="search-lat" placeholder="Click map" step="0.0001" style="font-size: 0.9rem;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem;">Longitude:</label>
+                                <input type="number" id="search-lng" placeholder="Click map" step="0.0001" style="font-size: 0.9rem;">
+                            </div>
+                        </div>
+                        <button id="map-click-btn" onclick="enableMapClick()" class="btn-secondary" style="width: 100%; margin-top: 0;">
+                            📍 Click Map to Set Location
+                        </button>
+                        <p class="info-text" id="click-status" style="display:none; color:#e74c3c; font-weight:bold; margin-top: 0.5rem; padding: 0.5rem; background: white; border-radius: 4px;">
+                            ✨ Map click mode ACTIVE - Click anywhere on the map!
+                        </p>
+                    </div>
+                    
+                    <!-- Search Radius -->
+                    <div class="form-group">
+                        <label>Search Radius (km):</label>
+                        <input type="range" id="radius-slider" min="0.5" max="50" step="0.5" value="5" 
+                               oninput="document.getElementById('radius').value = this.value; document.getElementById('radius-display').textContent = this.value + ' km'">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                            <span style="font-size: 0.85rem; color: #7f8c8d;">0.5 km</span>
+                            <span id="radius-display" style="font-weight: 600; color: #667eea; font-size: 1rem;">5 km</span>
+                            <span style="font-size: 0.85rem; color: #7f8c8d;">50 km</span>
+                    </div>
+                        <input type="number" id="radius" value="5" min="0.5" max="50" step="0.5" 
+                               oninput="document.getElementById('radius-slider').value = this.value; document.getElementById('radius-display').textContent = this.value + ' km'"
+                               style="margin-top: 0.5rem;">
+                    </div>
+                    
+                    <button onclick="searchNearby()" style="margin-top: 1rem;">🔍 Search Everything Nearby</button>
+                    
+                    <div style="margin-top: 1.25rem; padding: 1.25rem; background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); border-radius: 12px; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                        <h4 style="color: #2c3e50; margin-bottom: 1rem; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🔍</span> Filter What to Show
+                        </h4>
+                        <div class="filter-group">
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-cities" checked onchange="applyProximityFilters()">
+                                <label for="filter-cities">🏙️ Cities</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-hotels" checked onchange="applyProximityFilters()">
+                                <label for="filter-hotels">🏨 Hotels</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-tourism" checked onchange="applyProximityFilters()">
+                                <label for="filter-tourism">🎯 Tourism & Activities</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-restaurants" checked onchange="applyProximityFilters()">
+                                <label for="filter-restaurants">🍽️ Restaurants</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-shops" checked onchange="applyProximityFilters()">
+                                <label for="filter-shops">🛍️ Shops</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-coffee" checked onchange="applyProximityFilters()">
+                                <label for="filter-coffee">☕ Coffee Shops</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-petrol" checked onchange="applyProximityFilters()">
+                                <label for="filter-petrol">⛽ Petrol Stations</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="filter-healthcare" checked onchange="applyProximityFilters()">
+                                <label for="filter-healthcare">🏥 Hospitals & Chemists</label>
+                            </div>
+                    </div>
+                    </div>
+                        
+                    <div id="proximity-results" style="margin-top: 1.5rem; display: none;">
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); padding: 1.25rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05);">
+                            <h4 style="color: #2c3e50; margin-bottom: 0.75rem; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>🏙️</span> Cities <span style="color: #667eea; font-weight: 700;">(<span id="results-count">0</span>)</span>
+                            </h4>
+                            <div id="results-list" style="max-height: 150px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; background: white;">
+                    </div>
+                        
+                            <h4 style="color: #2c3e50; margin-top: 1.25rem; margin-bottom: 0.75rem; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>🏨</span> Hotels <span style="color: #667eea; font-weight: 700;">(<span id="hotels-count">0</span>)</span>
+                            </h4>
+                            <div id="hotels-list" style="max-height: 150px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; background: white;">
+                        </div>
+                        
+                            <h4 style="color: #2c3e50; margin-top: 1.25rem; margin-bottom: 0.75rem; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>📍</span> Points of Interest <span style="color: #667eea; font-weight: 700;">(<span id="pois-count">0</span>)</span>
+                            </h4>
+                            <div id="pois-list" style="max-height: 250px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; background: white;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="regions-tab" class="tab-content">
+                <div class="controls">
+                    <h3>Regions</h3>
+                    <p class="info-text">Click a region to see cities within it</p>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="show-regions" onchange="toggleRegions()">
+                            Show Region Boundaries
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Filter by Country:</label>
+                        <input type="text" id="region-country" placeholder="e.g., France">
+                    </div>
+                    <button onclick="loadRegions()">Load Regions</button>
+                    <button onclick="clearRegions()" class="btn-danger" style="margin-top: 0.5rem;">Clear Regions</button>
+                    <div id="selected-region-info" style="margin-top: 1rem; padding: 0.5rem; background: #ecf0f1; border-radius: 4px; display: none;">
+                        <strong>Selected Region:</strong>
+                        <p id="region-name" style="margin: 0.5rem 0;"></p>
+                        <p id="region-cities" style="margin: 0.5rem 0; color: #3498db;"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="hotels-tab" class="tab-content">
+                <div class="controls">
+                    <h3>Hotels</h3>
+                    <p class="info-text">Filter and display hotels on the map</p>
+                    
+                    <div class="form-group">
+                        <label>
+                                <input type="checkbox" id="hotels-visible" onchange="toggleHotels()">
+                            Show Hotels
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Star Rating:</label>
+                        <select id="hotel-stars" onchange="filterHotels()">
+                            <option value="">All Ratings</option>
+                            <option value="5">5 Stars</option>
+                            <option value="4">4 Stars</option>
+                            <option value="3">3 Stars</option>
+                            <option value="2">2 Stars</option>
+                            <option value="1">1 Star</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Price Range:</label>
+                        <select id="hotel-price" onchange="filterHotels()">
+                            <option value="">All Prices</option>
+                            <option value="luxury">€€€ Luxury</option>
+                            <option value="moderate">€€ Moderate</option>
+                            <option value="budget">€ Budget</option>
+                        </select>
+                    </div>
+                    
+                    <button onclick="filterHotels()">🔍 Show Hotels</button>
+                    <button onclick="clearHotels()" class="btn-secondary" style="margin-top: 0.5rem;">Clear Hotels</button>
+                    
+                    <div class="stat-item" style="margin-top: 1rem;">
+                        <strong>Hotels Shown:</strong> <span id="hotel-count">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="landmarks-tab" class="tab-content">
+                <div class="controls">
+                    <h3>Landmarks & POIs</h3>
+                    <p class="info-text">Discover tourist attractions, historic sites, and points of interest from OpenStreetMap</p>
+                    
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="landmarks-visible" onchange="toggleLandmarks()">
+                                Show Landmarks
+                            </label>
+                        </div>
+                    
+                    <div class="form-group">
+                        <label>Search Radius (km):</label>
+                        <input type="number" id="landmark-radius" value="10" min="1" max="50" step="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Landmark Type:</label>
+                        <select id="landmark-type" onchange="filterLandmarks()">
+                            <option value="">All Types</option>
+                            <option value="tourism">Tourism</option>
+                            <option value="historic">Historic</option>
+                            <option value="amenity">Amenity</option>
+                        </select>
+                    </div>
+                    
+                    <button onclick="fetchLandmarks()">🔍 Fetch Landmarks</button>
+                    <button onclick="clearLandmarks()" class="btn-secondary" style="margin-top: 0.5rem;">Clear Landmarks</button>
+                    
+                    <div class="stat-item" style="margin-top: 1rem;">
+                        <strong>Landmarks Shown:</strong> <span id="landmark-count">0</span>
+                    </div>
+                    
+                    <div id="landmark-results" style="margin-top: 1rem; max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 0.5rem; background: #f9f9f9; display: none;">
+                        <h4 style="color: #2c3e50; margin-bottom: 0.5rem;">Found Landmarks</h4>
+                        <div id="landmark-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="allpois-tab" class="tab-content">
+                <div class="controls">
+                    <h3>All Points of Interest</h3>
+                    <p class="info-text">Discover everything in an area: shops, restaurants, pubs, hairdressers, landmarks, and more from OpenStreetMap</p>
+                    
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="allpois-visible" onchange="toggleAllPOIs()">
+                                Show All POIs
+                            </label>
+                        </div>
+                    
+                    <div class="form-group">
+                        <label>Search Radius (km):</label>
+                        <input type="number" id="allpois-radius" value="2" min="0.5" max="10" step="0.5">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Filter by Type:</label>
+                        <select id="allpois-type" onchange="filterAllPOIs()">
+                            <option value="">All Types</option>
+                            <option value="shop">🛍️ Shops</option>
+                            <option value="amenity">🏢 Amenities</option>
+                            <option value="tourism">🎯 Tourism</option>
+                            <option value="historic">🏛️ Historic</option>
+                            <option value="leisure">🌳 Leisure</option>
+                            <option value="transport">🚉 Transport</option>
+                            <option value="place">🏙️ Places</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Filter by Category:</label>
+                        <select id="allpois-category" onchange="filterAllPOIs()">
+                            <option value="">All Categories</option>
+                            <option value="restaurant">🍽️ Restaurant</option>
+                            <option value="pub">🍺 Pub</option>
+                            <option value="cafe">☕ Cafe</option>
+                            <option value="fast_food">🍔 Fast Food</option>
+                            <option value="hairdresser">✂️ Hairdresser</option>
+                            <option value="pharmacy">💊 Pharmacy</option>
+                            <option value="supermarket">🏪 Supermarket</option>
+                            <option value="museum">🏛️ Museum</option>
+                            <option value="hotel">🏨 Hotel</option>
+                        </select>
+                    </div>
+                    
+                    <button onclick="fetchAllPOIs()">🔍 Fetch All POIs</button>
+                    <button onclick="clearAllPOIs()" class="btn-secondary" style="margin-top: 0.5rem;">Clear All POIs</button>
+                    
+                    <div class="stat-item" style="margin-top: 1rem;">
+                        <strong>POIs Shown:</strong> <span id="allpois-count">0</span>
+                    </div>
+                    
+                    <div id="allpois-results" style="margin-top: 1rem; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 0.5rem; background: #f9f9f9; display: none;">
+                        <h4 style="color: #2c3e50; margin-bottom: 0.5rem;">Found POIs</h4>
+                        <div id="allpois-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stats-tab" class="tab-content">
+                <div class="stats">
+                    <h3>Statistics</h3>
+                    <div class="stat-item">
+                        <strong>Total Cities:</strong> <span id="stat-cities">{{ total_cities }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>Total Regions:</strong> <span id="stat-regions">{{ total_regions }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>Cities on Map:</strong> <span id="stat-visible">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>Landmarks on Map:</strong> <span id="stat-landmarks">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>All POIs on Map:</strong> <span id="stat-allpois">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+    <script src="{% static 'js/dashboard.js' %}"></script>
+</body>
+</html>
+

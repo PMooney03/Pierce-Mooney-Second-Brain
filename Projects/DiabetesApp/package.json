@@ -1,0 +1,22 @@
+{
+  "name": "diabetes-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "free:dev": "node scripts/free-dev-ports.mjs",
+    "dev": "node scripts/free-dev-ports.mjs && concurrently -n server,client -c teal,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "prod": "npm run build && npm run start",
+    "setup": "node server/setup-cli.js",
+    "backup": "node server/backup-cli.js",
+    "seed-demo": "node server/seed-demo-cli.js",
+    "seed-demo:dev": "node server/dev-seed-demo.js",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

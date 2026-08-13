@@ -1,0 +1,20 @@
+#!/bin/bash
+# SME Starter Infra: gateway monitor helper
+#
+# Lightweight monitor used by the gateway-monitor systemd unit.
+# If upstream reachability drops, we bounce squid to recover quickly.
+
+set -euo pipefail
+
+TARGET_IP="{{ dns_forwarder | default('8.8.8.8') }}"
+LOG_TAG="gateway-monitor"
+
+while true; do
+  if ping -c 1 -W 2 "${TARGET_IP}" >/dev/null 2>&1; then
+    :
+  else
+    logger -t "${LOG_TAG}" "Connectivity check failed for ${TARGET_IP}; restarting squid."
+    systemctl restart squid || true
+  fi
+  sleep 60
+done

@@ -1,0 +1,124 @@
+---
+# Main deployment playbook for SME Infrastructure
+- name: Deploy SME Infrastructure
+  hosts: all_servers
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all/users.yml
+
+  roles:
+    - common
+    - users
+
+- name: Configure Firewalls
+  hosts: firewalls
+  become: true
+  roles:
+    - firewall
+
+- name: Configure Domain Controllers (Primary First)
+  hosts: domain_controllers
+  become: true
+  serial: 1
+  roles:
+    - domain_controller
+
+- name: Configure File Servers
+  hosts: file_servers
+  become: true
+  roles:
+    - file_server
+
+- name: Configure Web Servers
+  hosts: web_servers
+  become: true
+  roles:
+    - web_server
+
+- name: Configure Monitoring
+  hosts: monitoring
+  become: true
+  roles:
+    - monitoring
+
+- name: Configure Logging
+  hosts: logging
+  become: true
+  roles:
+    - logging
+
+- name: Configure Management Servers
+  hosts: management
+  become: true
+  roles:
+    - management
+
+- name: Enable user access from LAN
+  hosts: management:web_servers:monitoring:logging
+  become: true
+  roles:
+    - user_access
+
+- name: Generate Flask users.json from central definition
+  hosts: management
+  become: false
+  run_once: true
+  vars_files:
+    - ../group_vars/all/users.yml
+  tasks:
+    - name: Ensure generated directory exists
+      file:
+        path: /sme-ansible/generated
+        state: directory
+        mode: "0755"
+
+    - name: Write users.json for Flask (username, hashed password, role only)
+      template:
+        src: "../roles/users/templates/flask_users.json.j2"
+        dest: /sme-ansible/generated/users.json
+        mode: "0644"
+      when: sme_central_users_enabled | default(false) | bool and (sme_users | default([]) | length > 0)
+
+- name: Post-deployment verification
+  hosts: all_servers
+  become: true
+  tasks:
+    - name: Check service status
+      service_facts:
+      
+    - name: Display service status
+      debug:
+        msg: "{{ item.value.name }} is {{ item.value.state }}"
+      loop: "{{ ansible_facts.services | dict2items }}"
+      when:
+        - item.value.name in ['ssh', 'ntp', 'ufw', 'fail2ban', 'smbd', 'squid']
+        - item.value.state is defined
+
+    - name: Check disk space
+      shell: df -h /
+      register: disk_usage
+      
+    - name: Display disk usage
+      debug:
+        msg: "{{ disk_usage.stdout_lines }}"
+
+    - name: Test gateway connectivity
+      shell: ping -c 1 8.8.8.8
+      register: ping_result
+      ignore_errors: true
+      
+    - name: Display gateway test results
+      debug:
+        msg: "Gateway connectivity: {{ 'SUCCESS' if ping_result.rc == 0 else 'FAILED' }}"
+      when: "'firewalls' not in group_names and 'domain_controllers' not in group_names"
+
+    - name: Test DNS resolution
+      shell: nslookup google.com
+      register: dns_result
+      ignore_errors: true
+      
+    - name: Display DNS test results
+      debug:
+        msg: "DNS resolution: {{ 'SUCCESS' if dns_result.rc == 0 else 'FAILED' }}"
+      when: "'firewalls' not in group_names and 'domain_controllers' not in group_names" 

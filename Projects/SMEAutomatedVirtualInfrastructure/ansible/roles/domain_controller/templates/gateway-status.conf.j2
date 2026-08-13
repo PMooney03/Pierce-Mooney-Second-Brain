@@ -1,0 +1,14 @@
+<VirtualHost *:80>
+    ServerName {{ inventory_hostname }}.{{ network_domain }}
+    ServerAdmin {{ web_admin_email | default('webmaster@sme.local') }}
+    DocumentRoot /var/www/html
+
+    ErrorLog ${APACHE_LOG_DIR}/gateway-status-error.log
+    CustomLog ${APACHE_LOG_DIR}/gateway-status-access.log combined
+
+    <Directory /var/www/html>
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        Require all granted
+    </Directory>
+</VirtualHost>

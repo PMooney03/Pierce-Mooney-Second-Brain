@@ -1,0 +1,25 @@
+---
+# Handlers for common role
+
+- name: restart ntp
+  service:
+    name: ntp
+    state: restarted
+    enabled: true
+
+- name: restart ssh
+  service:
+    name: ssh
+    state: restarted
+    enabled: true
+
+- name: restart fail2ban
+  service:
+    name: fail2ban
+    state: restarted
+    enabled: true
+
+- name: reload ufw
+  service:
+    name: ufw
+    state: reloaded 

@@ -1,0 +1,101 @@
+---
+# Open UFW so users on the LAN (user_access_subnet) can reach:
+# - mgmt-1: SSH (admins)
+# - web-1/web-2: HTTP/HTTPS (web app)
+# - monitor-1: Grafana, Prometheus
+# - log-1: Kibana
+# Also allow internal subnet (192.168.56.0/24) so Ansible and Vagrant keep working.
+
+- name: Allow internal subnet (Ansible / Vagrant)
+  ufw:
+    rule: allow
+    from: "{{ network_subnet }}"
+    proto: tcp
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+
+- name: Allow SSH from VirtualBox NAT gateway (vagrant ssh uses NAT forwarding from 10.0.2.x)
+  ufw:
+    rule: allow
+    from: "10.0.2.0/24"
+    port: "22"
+    proto: tcp
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+
+- name: Allow SSH from control node (host machine) on management servers
+  ufw:
+    rule: allow
+    from: "{{ item }}"
+    port: "22"
+    proto: tcp
+  loop: "{{ control_node_networks | default([]) }}"
+  when:
+    - control_node_networks | default([]) | length > 0
+    - "'management' in group_names"
+
+- name: Allow SSH from LAN on management servers
+  ufw:
+    rule: allow
+    from: "{{ user_access_subnet }}"
+    port: "22"
+    proto: tcp
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+    - "'management' in group_names"
+
+- name: Allow SSH from LAN on domain controllers
+  ufw:
+    rule: allow
+    from: "{{ user_access_subnet }}"
+    port: "22"
+    proto: tcp
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+    - "'domain_controllers' in group_names"
+
+- name: Allow HTTP/HTTPS from LAN on web servers
+  ufw:
+    rule: allow
+    from: "{{ user_access_subnet }}"
+    port: "{{ item }}"
+    proto: tcp
+  loop: ["80", "443"]
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+    - "'web_servers' in group_names"
+
+- name: Allow Grafana and Prometheus from LAN on monitoring
+  ufw:
+    rule: allow
+    from: "{{ user_access_subnet }}"
+    port: "{{ item }}"
+    proto: tcp
+  loop: ["3000", "9090"]
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+    - "'monitoring' in group_names"
+
+- name: Allow Kibana from LAN on logging
+  ufw:
+    rule: allow
+    from: "{{ user_access_subnet }}"
+    port: "5601"
+    proto: tcp
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0
+    - "'logging' in group_names"
+
+- name: Ensure UFW is enabled (user access)
+  ufw:
+    state: enabled
+  when:
+    - user_access_subnet is defined
+    - user_access_subnet | length > 0

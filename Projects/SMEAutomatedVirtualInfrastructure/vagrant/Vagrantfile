@@ -1,0 +1,164 @@
+VAGRANTFILE_API_VERSION = "2"
+
+# Network adapters (each VM gets both):
+#   Adapter 1 - NAT: Vagrant/VirtualBox default. Used for internet and for forwarded_port (host 2250->2261
+#               to guest 22). Not defined explicitly here; it's the first NIC.
+#   Adapter 2 - Host-only (private_network): static IP on 192.168.56.x so VMs and host can talk.
+#               Requires a VirtualBox host-only network on 192.168.56.0/24. fw-1 uses .3 so the
+#               host can keep .1 (VirtualBox default) with no conflict. The trigger below ensures
+#               that network exists before 'vagrant up'.
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = "ubuntu/jammy64"
+
+  # Sync ansible (parent/ansible) into VMs so deploy can run from mgmt-1 on Windows hosts
+  config.vm.synced_folder "../ansible", "/sme-ansible"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+    vb.cpus = 1
+  end
+
+  # Ensure VirtualBox host-only network 192.168.56.0/24 exists before up (fixes "No route to host").
+  # Scripts exit 0 even on failure so vagrant up is never aborted. Skipped if triggers not available (Vagrant < 2.2).
+  if config.respond_to?(:trigger)
+    config.trigger.before :up do |t|
+      script_dir = File.expand_path("scripts", __dir__)
+      if Vagrant::Util::Platform.windows?
+        t.run = { inline: "powershell -ExecutionPolicy Bypass -NoProfile -File \"#{script_dir}/ensure-hostonly.ps1\"" }
+      else
+        t.run = { inline: "sh \"#{script_dir}/ensure-hostonly.sh\"" }
+      end
+    end
+
+    # After all VMs are up, run Ansible deploy from host so infrastructure + users + Flask data are fully configured.
+    # Set SME_SKIP_DEPLOY_ON_UP=1 to skip (e.g. for faster dev cycles).
+    config.trigger.after :up do |t|
+      next if ENV["SME_SKIP_DEPLOY_ON_UP"].to_s.strip == "1"
+      project_root = File.expand_path("..", __dir__)
+      if Vagrant::Util::Platform.windows?
+        t.run = { inline: "cd \"#{project_root}\" ; python cli.py deploy" }
+      else
+        t.run = { inline: "cd \"#{project_root}\" && python cli.py deploy" }
+      end
+    end
+  end
+
+  # Fixed SSH host ports (guest 22). Use 2250+ so Vagrant auto-ports (2222, 2200...) don't collide.
+  config.vm.define "fw-1" do |fw1|
+    fw1.vm.hostname = "fw-1.local"
+    fw1.vm.network "forwarded_port", guest: 22, host: 2250
+    fw1.vm.network "private_network", ip: "192.168.56.3"
+    fw1.vm.provision "shell", path: "bootstrap/fw.sh", args: ["fw-1", "192.168.56.3", "1"]
+  end
+
+  config.vm.define "fw-2" do |fw2|
+    fw2.vm.hostname = "fw-2.local"
+    fw2.vm.network "forwarded_port", guest: 22, host: 2251
+    fw2.vm.network "private_network", ip: "192.168.56.2"
+    fw2.vm.provision "shell", path: "bootstrap/fw.sh", args: ["fw-2", "192.168.56.2", "2"]
+  end
+
+  # Domain Controller nodes (dc-1, dc-2)
+  config.vm.define "dc-1" do |dc1|
+    dc1.vm.hostname = "dc-1.local"
+    dc1.vm.network "forwarded_port", guest: 22, host: 2252
+    dc1.vm.network "private_network", ip: "192.168.56.10"
+    dc1.vm.network "public_network", use_dhcp_assigned_default_route: true
+    dc1.vm.provision "shell", path: "bootstrap/dc.sh", args: ["dc-1", "192.168.56.10", "1"]
+  end
+
+  config.vm.define "dc-2" do |dc2|
+    dc2.vm.hostname = "dc-2.local"
+    dc2.vm.network "forwarded_port", guest: 22, host: 2253
+    dc2.vm.network "private_network", ip: "192.168.56.11"
+    dc2.vm.network "public_network", use_dhcp_assigned_default_route: true
+    dc2.vm.provision "shell", path: "bootstrap/dc.sh", args: ["dc-2", "192.168.56.11", "2"]
+  end
+
+  # File Server nodes (filesrv-1, filesrv-2)
+  config.vm.define "filesrv-1" do |filesrv1|
+    filesrv1.vm.hostname = "filesrv-1.local"
+    filesrv1.vm.network "forwarded_port", guest: 22, host: 2254
+    filesrv1.vm.network "private_network", ip: "192.168.56.20"
+    filesrv1.vm.provision "shell", path: "bootstrap/filesrv.sh", args: ["filesrv-1", "192.168.56.20", "1"]
+  end
+
+  config.vm.define "filesrv-2" do |filesrv2|
+    filesrv2.vm.hostname = "filesrv-2.local"
+    filesrv2.vm.network "forwarded_port", guest: 22, host: 2255
+    filesrv2.vm.network "private_network", ip: "192.168.56.21"
+    filesrv2.vm.provision "shell", path: "bootstrap/filesrv.sh", args: ["filesrv-2", "192.168.56.21", "2"]
+  end
+
+  # Web Server nodes (web-1, web-2) - bridged NIC so users on LAN can reach web app
+  config.vm.define "web-1" do |web1|
+    web1.vm.hostname = "web-1.local"
+    web1.vm.network "forwarded_port", guest: 22, host: 2256
+    web1.vm.network "private_network", ip: "192.168.56.30"
+    web1.vm.network "public_network", use_dhcp_assigned_default_route: true
+    web1.vm.provision "shell", path: "bootstrap/web.sh", args: ["web-1", "192.168.56.30", "1"]
+  end
+
+  config.vm.define "web-2" do |web2|
+    web2.vm.hostname = "web-2.local"
+    web2.vm.network "forwarded_port", guest: 22, host: 2257
+    web2.vm.network "private_network", ip: "192.168.56.31"
+    web2.vm.network "public_network", use_dhcp_assigned_default_route: true
+    web2.vm.provision "shell", path: "bootstrap/web.sh", args: ["web-2", "192.168.56.31", "2"]
+  end
+
+  # Monitoring node (monitor-1) - bridged so users can reach Grafana
+  config.vm.define "monitor-1" do |monitor1|
+    monitor1.vm.hostname = "monitor-1.local"
+    monitor1.vm.network "forwarded_port", guest: 22, host: 2258
+    monitor1.vm.network "private_network", ip: "192.168.56.40"
+    monitor1.vm.network "public_network", use_dhcp_assigned_default_route: true
+    monitor1.vm.provision "shell", path: "bootstrap/monitor.sh", args: ["monitor-1", "192.168.56.40", "1"]
+  end
+
+  # Logging node (log-1) - bridged so users can reach Kibana; more RAM for ELK
+  config.vm.define "log-1" do |log1|
+    log1.vm.hostname = "log-1.local"
+    log1.vm.network "forwarded_port", guest: 22, host: 2259
+    log1.vm.network "private_network", ip: "192.168.56.41"
+    log1.vm.network "public_network", use_dhcp_assigned_default_route: true
+    log1.vm.boot_timeout = 1500  # 25 min: log-1 is often slow (ELK downloads, setup)
+    # Prevent "timeout during server version negotiating" when VM is under heavy load during provisioning
+    log1.ssh.connect_timeout = 600   # 10 min for initial connect / reconnects
+    log1.ssh.keep_alive = true       # keep connection alive during long apt/ELK installs
+    log1.vm.provider "virtualbox" do |vb|
+      vb.memory = "4096"  # 4GB for ELK stack
+      vb.cpus = 2
+    end
+    log1.vm.provision "shell", path: "bootstrap/log.sh", args: ["log-1", "192.168.56.41", "1"]
+  end
+
+  # Management nodes (mgmt-1, mgmt-2) - bridged so admins can SSH from any laptop; 4GB RAM
+  config.vm.define "mgmt-1" do |mgmt1|
+    mgmt1.vm.hostname = "mgmt-1.local"
+    mgmt1.vm.network "forwarded_port", guest: 22, host: 2260
+    mgmt1.vm.network "private_network", ip: "192.168.56.50"
+    mgmt1.vm.network "public_network", use_dhcp_assigned_default_route: true
+    mgmt1.vm.boot_timeout = 900
+    mgmt1.ssh.connect_timeout = 600
+    mgmt1.ssh.keep_alive = true
+    mgmt1.vm.provider "virtualbox" do |vb|
+      vb.memory = "4096"
+    end
+    mgmt1.vm.provision "shell", path: "bootstrap/mgmt.sh", args: ["mgmt-1", "192.168.56.50", "1"]
+  end
+
+  config.vm.define "mgmt-2" do |mgmt2|
+    mgmt2.vm.hostname = "mgmt-2.local"
+    mgmt2.vm.network "forwarded_port", guest: 22, host: 2261
+    mgmt2.vm.network "private_network", ip: "192.168.56.51"
+    mgmt2.vm.network "public_network", use_dhcp_assigned_default_route: true
+    mgmt2.vm.boot_timeout = 900
+    mgmt2.ssh.connect_timeout = 600
+    mgmt2.ssh.keep_alive = true
+    mgmt2.vm.provider "virtualbox" do |vb|
+      vb.memory = "4096"
+    end
+    mgmt2.vm.provision "shell", path: "bootstrap/mgmt.sh", args: ["mgmt-2", "192.168.56.51", "2"]
+  end
+end

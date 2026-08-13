@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  role_name: security_baseline
+  description: Lab safety and security boundary configuration
+  license: MIT
+  min_ansible_version: "2.12"
+dependencies:
+  - role: common

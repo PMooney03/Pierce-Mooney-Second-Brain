@@ -1,0 +1,54 @@
+---
+# Maintenance playbook for SME Infrastructure
+- name: System Maintenance
+  hosts: all_servers
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Upgrade packages
+      apt:
+        upgrade: safe
+        autoremove: true
+      when: ansible_os_family == "Debian"
+
+    - name: Check disk space
+      shell: df -h
+      register: disk_usage
+      
+    - name: Display disk usage
+      debug:
+        msg: "{{ disk_usage.stdout_lines }}"
+
+    - name: Check memory usage
+      shell: free -h
+      register: memory_usage
+      
+    - name: Display memory usage
+      debug:
+        msg: "{{ memory_usage.stdout_lines }}"
+
+    - name: Check service status
+      service_facts:
+      
+    - name: Display critical service status
+      debug:
+        msg: "{{ item.name }} is {{ item.state }}"
+      loop: "{{ ansible_facts.services }}"
+      when: 
+        - item.name in ['ssh', 'ntp', 'ufw', 'fail2ban', 'smbd', 'apache2', 'prometheus', 'grafana-server']
+        - item.state is defined
+
+    - name: Clean up old log files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/var/log/*.gz"
+        - "/var/log/*.1"
+        - "/var/log/sme/*.gz"
+      when: ansible_os_family == "Debian"
+
+    - name: Rotate logs
+      shell: logrotate -f /etc/logrotate.conf
+      when: ansible_os_family == "Debian" 

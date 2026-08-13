@@ -1,0 +1,11 @@
+{
+  "users": [
+{% for u in sme_users | default([]) %}
+    {
+      "username": {{ u.username | to_json }},
+      "password": {{ u.hashed_password | to_json }},
+      "role": {{ u.role | to_json }}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ]
+}

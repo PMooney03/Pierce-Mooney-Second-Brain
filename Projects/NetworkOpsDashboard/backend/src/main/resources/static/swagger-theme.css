@@ -1,0 +1,175 @@
+/* Network Ops Swagger theme — dark by default, toggleable to light */
+
+:root,
+html[data-theme="light"] {
+  --nod-bg: #f7f8fa;
+  --nod-surface: #ffffff;
+  --nod-text: #1a1d23;
+  --nod-muted: #5c6570;
+  --nod-border: #d8dde3;
+  --nod-accent: #0b6e4f;
+  --nod-accent-soft: #e6f4ef;
+  --nod-topbar: #0f1720;
+  --nod-code-bg: #f0f2f5;
+}
+
+html[data-theme="dark"] {
+  --nod-bg: #0f1419;
+  --nod-surface: #1a222c;
+  --nod-text: #e8edf2;
+  --nod-muted: #9aa7b5;
+  --nod-border: #2c3744;
+  --nod-accent: #3dd68c;
+  --nod-accent-soft: #163528;
+  --nod-topbar: #0a0e13;
+  --nod-code-bg: #121820;
+}
+
+html {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--nod-bg) !important;
+}
+
+.swagger-ui {
+  color: var(--nod-text);
+}
+
+.swagger-ui .topbar {
+  background: var(--nod-topbar) !important;
+  border-bottom: 1px solid var(--nod-border);
+}
+
+.swagger-ui .topbar .download-url-wrapper .select-label select {
+  border-color: var(--nod-border);
+}
+
+.swagger-ui .info .title,
+.swagger-ui .info li,
+.swagger-ui .info p,
+.swagger-ui .info table,
+.swagger-ui .scheme-container,
+.swagger-ui .opblock-tag,
+.swagger-ui .opblock-tag small,
+.swagger-ui .tab li,
+.swagger-ui label,
+.swagger-ui .parameter__name,
+.swagger-ui .parameter__type,
+.swagger-ui .response-col_status,
+.swagger-ui .response-col_links,
+.swagger-ui table thead tr td,
+.swagger-ui table thead tr th,
+.swagger-ui .model-title,
+.swagger-ui .prop-type,
+.swagger-ui .prop-format {
+  color: var(--nod-text) !important;
+}
+
+.swagger-ui .info .base-url,
+.swagger-ui .parameter__in,
+.swagger-ui .opblock-summary-path__unsupported,
+.swagger-ui .opblock-description-wrapper p,
+.swagger-ui .opblock-external-docs-wrapper p,
+.swagger-ui .opblock-title_normal p {
+  color: var(--nod-muted) !important;
+}
+
+.swagger-ui .scheme-container,
+.swagger-ui .opblock,
+.swagger-ui section.models,
+.swagger-ui .dialog-ux .modal-ux {
+  background: var(--nod-surface) !important;
+  border-color: var(--nod-border) !important;
+  box-shadow: none !important;
+}
+
+.swagger-ui .opblock .opblock-section-header {
+  background: var(--nod-code-bg) !important;
+  border-color: var(--nod-border) !important;
+}
+
+.swagger-ui .opblock .opblock-summary-description {
+  color: var(--nod-muted) !important;
+}
+
+.swagger-ui input[type="text"],
+.swagger-ui input[type="password"],
+.swagger-ui input[type="search"],
+.swagger-ui input[type="email"],
+.swagger-ui textarea,
+.swagger-ui select {
+  background: var(--nod-code-bg) !important;
+  color: var(--nod-text) !important;
+  border-color: var(--nod-border) !important;
+}
+
+.swagger-ui .btn {
+  border-color: var(--nod-border) !important;
+}
+
+.swagger-ui .btn.execute {
+  background: var(--nod-accent) !important;
+  border-color: var(--nod-accent) !important;
+  color: #04140c !important;
+}
+
+html[data-theme="light"] .swagger-ui .btn.execute {
+  color: #ffffff !important;
+}
+
+.swagger-ui .highlight-code,
+.swagger-ui .microlight,
+.swagger-ui .model-box,
+.swagger-ui .model {
+  background: var(--nod-code-bg) !important;
+}
+
+.swagger-ui .response-col_description__inner div.markdown,
+.swagger-ui .response-col_description__inner div.renderedMarkdown,
+.swagger-ui .markdown p,
+.swagger-ui .renderedMarkdown p {
+  color: var(--nod-text) !important;
+}
+
+.swagger-ui .opblock-body pre.microlight {
+  background: var(--nod-code-bg) !important;
+  color: var(--nod-text) !important;
+}
+
+.swagger-ui .model-toggle:after {
+  background: var(--nod-muted) !important;
+}
+
+/* Theme toggle control */
+#nod-theme-toggle {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--nod-border);
+  background: var(--nod-surface);
+  color: var(--nod-text);
+  font: 600 13px/1.2 system-ui, Segoe UI, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+#nod-theme-toggle:hover {
+  border-color: var(--nod-accent);
+}
+
+#nod-theme-toggle:focus-visible {
+  outline: 2px solid var(--nod-accent);
+  outline-offset: 2px;
+}

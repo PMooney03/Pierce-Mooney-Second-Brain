@@ -1,0 +1,37 @@
+---
+- name: Ensure lab configuration directory exists
+  ansible.builtin.file:
+    path: /etc/enterprise-pentest-lab
+    state: directory
+    mode: "0755"
+
+- name: Deploy lab identity marker
+  ansible.builtin.template:
+    src: lab-identity.conf.j2
+    dest: /etc/enterprise-pentest-lab/identity.conf
+    mode: "0644"
+  notify: Validate lab marker
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Configure static hosts entries for lab DNS
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ENTERPRISE PENTEST LAB HOSTS"
+    block: |
+      192.168.56.10  kali-attacker
+      192.168.56.20  ubuntu-target
+      192.168.56.30  windows-server
+    create: false
+
+- name: Ensure SSH service is enabled
+  ansible.builtin.service:
+    name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+    state: started
+    enabled: true
+  failed_when: false

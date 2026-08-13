@@ -1,0 +1,114 @@
+# enterprise-pentest-lab - Vulnerable web apps and optional monitoring
+# Binds to host-only accessible interfaces (lab local use)
+
+services:
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: epl-dvwa
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - MYSQL_HOSTNAME=dvwa-db
+      - MYSQL_DATABASE=dvwa
+      - MYSQL_USERNAME=dvwa
+      - MYSQL_PASSWORD=p@ssw0rd
+    depends_on:
+      dvwa-db:
+        condition: service_healthy
+    networks:
+      - lab_web
+
+  dvwa-db:
+    image: mariadb:10.6
+    container_name: epl-dvwa-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=dvwa
+      - MYSQL_USER=dvwa
+      - MYSQL_PASSWORD=p@ssw0rd
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lab_web
+
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: epl-juice-shop
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - lab_web
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: epl-cadvisor
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "8081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    privileged: true
+    networks:
+      - lab_monitoring
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: epl-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - cadvisor
+    networks:
+      - lab_monitoring
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: epl-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=labadmin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - lab_monitoring
+
+networks:
+  lab_web:
+    driver: bridge
+    internal: false
+  lab_monitoring:
+    driver: bridge
+    internal: false
+
+volumes:
+  prometheus_data:
+  grafana_data:

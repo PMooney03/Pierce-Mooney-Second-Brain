@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""
+SME Infrastructure Health Monitor
+Monitors all infrastructure components and triggers recovery procedures
+"""
+
+import json
+import time
+import subprocess
+import logging
+import argparse
+import requests
+import socket
+import os
+from datetime import datetime
+from typing import Dict, List, Optional
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('/var/log/sme/recovery/health-monitor.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+class HealthMonitor:
+    def __init__(self, config_file: str = '/opt/sme/config/recovery-config.json'):
+        self.config_file = config_file
+        self.config = self.load_config()
+        self.hosts = self.config.get('hosts', {})
+        self.services = self.config.get('services', {})
+        self.recovery_actions = self.config.get('recovery_actions', {})
+        
+    def load_config(self) -> Dict:
+        """Load recovery configuration"""
+        try:
+            with open(self.config_file, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            logger.error(f"Configuration file {self.config_file} not found")
+            return {}
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON in configuration file {self.config_file}")
+            return {}
+    
+    def check_host_connectivity(self, host: str, ip: str) -> Dict:
+        """Check if a host is reachable"""
+        result = {
+            'host': host,
+            'ip': ip,
+            'status': 'unknown',
+            'ping': False,
+            'ssh': False,
+            'services': {},
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Ping test
+        try:
+            ping_result = subprocess.run(
+                ['ping', '-c', '3', '-W', '5', ip],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            result['ping'] = ping_result.returncode == 0
+        except subprocess.TimeoutExpired:
+            result['ping'] = False
+            logger.warning(f"Ping timeout for {host} ({ip})")
+        
+        # SSH test
+        try:
+            ssh_result = subprocess.run(
+                ['ssh', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes', 
+                 f'vagrant@{ip}', 'echo "SSH test"'],
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            result['ssh'] = ssh_result.returncode == 0
+        except subprocess.TimeoutExpired:
+            result['ssh'] = False
+            logger.warning(f"SSH timeout for {host} ({ip})")
+        
+        # Determine overall status
+        if result['ping'] and result['ssh']:
+            result['status'] = 'healthy'
+        elif result['ping'] and not result['ssh']:
+            result['status'] = 'ssh_issue'
+        elif not result['ping']:
+            result['status'] = 'down'
+        
+        return result
+    
+    def check_service_health(self, host: str, ip: str) -> Dict:
+        """Check specific services on a host"""
+        services = {}
+        
+        # Common service ports to check
+        service_ports = {
+            'http': 80,
+            'https': 443,
+            'ssh': 22,
+            'dns': 53,
+            'ldap': 389,
+            'kerberos': 88,
+            'ntp': 123,
+            'smtp': 25,
+            'imap': 143,
+            'pop3': 110
+        }
+        
+        for service_name, port in service_ports.items():
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                result = sock.connect_ex((ip, port))
+                services[service_name] = result == 0
+                sock.close()
+            except Exception as e:
+                services[service_name] = False
+                logger.debug(f"Service check failed for {service_name} on {host}: {e}")
+        
+        return services
+    
+    def check_all_hosts(self) -> List[Dict]:
+        """Check health of all hosts"""
+        results = []
+        
+        for host, config in self.hosts.items():
+            ip = config.get('ip')
+            if not ip:
+                logger.warning(f"No IP configured for host {host}")
+                continue
+            
+            logger.info(f"Checking health of {host} ({ip})")
+            health_result = self.check_host_connectivity(host, ip)
+            
+            # Add service health if host is reachable
+            if health_result['ping']:
+                health_result['services'] = self.check_service_health(host, ip)
+            
+            results.append(health_result)
+            
+            # Log status
+            if health_result['status'] == 'healthy':
+                logger.info(f"✅ {host} is healthy")
+            elif health_result['status'] == 'ssh_issue':
+                logger.warning(f"⚠️  {host} has SSH issues")
+            elif health_result['status'] == 'down':
+                logger.error(f"❌ {host} is down")
+        
+        return results
+    
+    def trigger_recovery(self, host: str, issue: str) -> bool:
+        """Trigger recovery procedure for a host"""
+        logger.info(f"Triggering recovery for {host} - Issue: {issue}")
+        
+        try:
+            # Call auto-recovery script
+            recovery_script = '/opt/sme/scripts/auto-recovery.sh'
+            if os.path.exists(recovery_script):
+                result = subprocess.run(
+                    [recovery_script, '--host', host, '--issue', issue],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                
+                if result.returncode == 0:
+                    logger.info(f"Recovery triggered successfully for {host}")
+                    return True
+                else:
+                    logger.error(f"Recovery failed for {host}: {result.stderr}")
+                    return False
+            else:
+                logger.error(f"Recovery script not found: {recovery_script}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"Recovery timeout for {host}")
+            return False
+        except Exception as e:
+            logger.error(f"Recovery error for {host}: {e}")
+            return False
+    
+    def save_results(self, results: List[Dict], filename: str = None):
+        """Save health check results to file"""
+        if not filename:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'/var/log/sme/recovery/health-check-{timestamp}.json'
+        
+        try:
+            with open(filename, 'w') as f:
+                json.dump(results, f, indent=2)
+            logger.info(f"Health check results saved to {filename}")
+        except Exception as e:
+            logger.error(f"Failed to save results: {e}")
+    
+    def generate_report(self, results: List[Dict]) -> str:
+        """Generate a human-readable health report"""
+        report = []
+        report.append("=== SME Infrastructure Health Report ===")
+        report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report.append("")
+        
+        healthy_count = 0
+        warning_count = 0
+        down_count = 0
+        
+        for result in results:
+            host = result['host']
+            status = result['status']
+            ip = result['ip']
+            
+            if status == 'healthy':
+                healthy_count += 1
+                report.append(f"✅ {host} ({ip}) - HEALTHY")
+            elif status == 'ssh_issue':
+                warning_count += 1
+                report.append(f"⚠️  {host} ({ip}) - SSH ISSUES")
+            elif status == 'down':
+                down_count += 1
+                report.append(f"❌ {host} ({ip}) - DOWN")
+            
+            # Add service status if available
+            if result.get('services'):
+                for service, is_up in result['services'].items():
+                    if not is_up:
+                        report.append(f"   - {service} service is down")
+        
+        report.append("")
+        report.append("=== Summary ===")
+        report.append(f"Total hosts: {len(results)}")
+        report.append(f"Healthy: {healthy_count}")
+        report.append(f"Warnings: {warning_count}")
+        report.append(f"Down: {down_count}")
+        
+        return "\n".join(report)
+    
+    def run_monitoring_cycle(self, auto_recover: bool = True) -> List[Dict]:
+        """Run a complete monitoring cycle"""
+        logger.info("Starting health monitoring cycle")
+        
+        # Check all hosts
+        results = self.check_all_hosts()
+        
+        # Save results
+        self.save_results(results)
+        
+        # Generate and log report
+        report = self.generate_report(results)
+        logger.info("\n" + report)
+        
+        # Trigger recovery for down hosts if auto-recovery is enabled
+        if auto_recover:
+            for result in results:
+                if result['status'] == 'down':
+                    self.trigger_recovery(result['host'], 'host_down')
+                elif result['status'] == 'ssh_issue':
+                    self.trigger_recovery(result['host'], 'ssh_issue')
+        
+        return results
+
+def main():
+    parser = argparse.ArgumentParser(description='SME Infrastructure Health Monitor')
+    parser.add_argument('--check', action='store_true', help='Run a single health check')
+    parser.add_argument('--monitor', action='store_true', help='Run continuous monitoring')
+    parser.add_argument('--interval', type=int, default=300, help='Monitoring interval in seconds')
+    parser.add_argument('--no-recovery', action='store_true', help='Disable auto-recovery')
+    parser.add_argument('--config', default='/opt/sme/config/recovery-config.json', help='Configuration file')
+    
+    args = parser.parse_args()
+    
+    monitor = HealthMonitor(args.config)
+    
+    if args.check:
+        # Single health check
+        results = monitor.run_monitoring_cycle(auto_recover=not args.no_recovery)
+        print(monitor.generate_report(results))
+        
+    elif args.monitor:
+        # Continuous monitoring
+        logger.info(f"Starting continuous monitoring with {args.interval}s intervals")
+        try:
+            while True:
+                monitor.run_monitoring_cycle(auto_recover=not args.no_recovery)
+                time.sleep(args.interval)
+        except KeyboardInterrupt:
+            logger.info("Monitoring stopped by user")
+    
+    else:
+        # Default: single check
+        results = monitor.run_monitoring_cycle(auto_recover=not args.no_recovery)
+        print(monitor.generate_report(results))
+
+if __name__ == '__main__':
+    main() 

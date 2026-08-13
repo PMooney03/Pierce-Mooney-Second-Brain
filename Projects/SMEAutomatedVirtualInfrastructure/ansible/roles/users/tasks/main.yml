@@ -1,0 +1,138 @@
+---
+# Central user provisioning: create Linux users from sme_users, SSH keys, groups, sudo.
+# Requires sme_central_users_enabled and sme_users to be set (e.g. in group_vars/all/users.yml).
+# Idempotent: user, authorized_key, lineinfile, copy are all idempotent.
+
+- name: Ensure SME groups exist
+  group:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - "{{ sme_admin_group }}"
+    - "{{ sme_user_group }}"
+  when: sme_central_users_enabled | default(false) | bool and (sme_users | default([]) | length > 0)
+
+- name: Create Linux users from central definition
+  user:
+    name: "{{ item.username }}"
+    state: present
+    shell: /bin/bash
+    groups: "{{ (item.role == 'admin') | ternary(sme_admin_group, sme_user_group) }}"
+    append: true
+    create_home: true
+  loop: "{{ sme_users | default([]) }}"
+  when: sme_central_users_enabled | default(false) | bool
+
+- name: Ensure .ssh directory for each SME user
+  file:
+    path: "/home/{{ item.username }}/.ssh"
+    state: directory
+    owner: "{{ item.username }}"
+    group: "{{ item.username }}"
+    mode: "0700"
+  loop: "{{ sme_users | default([]) }}"
+  when: sme_central_users_enabled | default(false) | bool
+
+- name: Deploy SSH authorized_keys for SME users
+  authorized_key:
+    user: "{{ item.username }}"
+    key: "{{ item.ssh_public_key | trim }}"
+    state: present
+    exclusive: false
+  loop: "{{ sme_users | default([]) }}"
+  when:
+    - sme_central_users_enabled | default(false) | bool
+    - item.ssh_public_key is defined
+    - item.ssh_public_key | trim | length > 0
+
+- name: Install sudo if not present
+  apt:
+    name: sudo
+    state: present
+  when: sme_central_users_enabled | default(false) | bool and (sme_users | default([]) | length > 0)
+
+- name: Create sudoers drop-in for SME admin users (NOPASSWD)
+  template:
+    src: sme_sudoers.j2
+    dest: "{{ sme_sudoers_file }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+  when:
+    - sme_central_users_enabled | default(false) | bool
+    - (sme_users | default([]) | selectattr('role', 'equalto', 'admin') | list | length) > 0
+
+- name: Override cloud-init PasswordAuthentication on management and DC hosts
+  copy:
+    dest: /etc/ssh/sshd_config.d/50-sme-password-auth.conf
+    content: "PasswordAuthentication yes\n"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - sme_central_users_enabled | default(false) | bool
+    - "'management' in group_names or 'domain_controllers' in group_names"
+
+- name: Remove cloud-init SSH drop-in that forces PasswordAuthentication no
+  file:
+    path: /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
+    state: absent
+  when:
+    - sme_central_users_enabled | default(false) | bool
+    - "'management' in group_names or 'domain_controllers' in group_names"
+
+- name: Allow password SSH on management and domain controller hosts
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication\\s+"
+    line: "{{ ('management' in group_names or 'domain_controllers' in group_names) | ternary('PasswordAuthentication yes', 'PasswordAuthentication no') }}"
+    state: present
+  when: sme_central_users_enabled | default(false) | bool
+
+- name: Set password for SME users so password SSH works on management hosts
+  user:
+    name: "{{ item.username }}"
+    password: "{{ (item.linux_password | default('Admin123!')) | password_hash('sha512') }}"
+  loop: "{{ sme_users | default([]) }}"
+  when:
+    - sme_central_users_enabled | default(false) | bool
+    - "'management' in group_names or 'domain_controllers' in group_names"
+
+- name: Ensure PubkeyAuthentication is enabled
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PubkeyAuthentication\\s+"
+    line: "PubkeyAuthentication yes"
+    state: present
+  when: sme_central_users_enabled | default(false) | bool
+
+- name: Disable UseDNS to avoid slow Vagrant and LAN SSH handshakes
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?UseDNS\\s+"
+    line: "UseDNS no"
+    state: present
+  when: sme_central_users_enabled | default(false) | bool
+
+- name: Disable GSSAPI auth to avoid slow SSH negotiation
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?GSSAPIAuthentication\\s+"
+    line: "GSSAPIAuthentication no"
+    state: present
+  when: sme_central_users_enabled | default(false) | bool
+
+- name: Set AllowUsers to vagrant and all SME usernames
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?AllowUsers\\s+"
+    line: "AllowUsers vagrant {{ sme_users | default([]) | map(attribute='username') | list | join(' ') }}"
+    state: present
+  when: sme_central_users_enabled | default(false) | bool and (sme_users | default([]) | length > 0)
+
+- name: Restart SSH to apply key-only and AllowUsers
+  service:
+    name: ssh
+    state: restarted
+  when: sme_central_users_enabled | default(false) | bool

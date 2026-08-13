@@ -1,0 +1,5 @@
+---
+# Stub role for monitoring (Prometheus/Node exporter configured by Vagrant bootstrap)
+- name: Monitoring role placeholder
+  debug:
+    msg: "Monitoring config applied by bootstrap; extend this role as needed."

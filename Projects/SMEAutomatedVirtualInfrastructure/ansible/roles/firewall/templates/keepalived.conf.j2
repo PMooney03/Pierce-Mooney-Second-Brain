@@ -1,0 +1,29 @@
+# Keepalived Configuration for SME Infrastructure
+
+global_defs {
+    router_id {{ inventory_hostname }}
+    vrrp_garp_master_delay 1
+    vrrp_garp_master_repeat 1
+    vrrp_garp_master_refresh 60
+}
+
+vrrp_instance VI_1 {
+    state {{ vrrp_state }}
+    interface eth1
+    virtual_router_id {{ firewall_vrrp_id }}
+    priority {{ vrrp_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ firewall_vrrp_password }}
+    }
+    virtual_ipaddress {
+        {{ firewall_virtual_ip }}
+    }
+    track_interface {
+        eth1
+    }
+    notify_master "/usr/local/bin/firewall-status"
+    notify_backup "/usr/local/bin/firewall-status"
+    notify_fault "/usr/local/bin/firewall-status"
+} 

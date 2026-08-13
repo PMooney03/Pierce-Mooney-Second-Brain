@@ -1,0 +1,94 @@
+# Environment
+.env
+*.env.local
+**/.env
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+**/.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node / frontend
+node_modules/
+**/node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Application data (local indexes — never commit college content indexes)
+data/sqlite/*.db
+data/sqlite/*.db-*
+data/qdrant/
+data/qdrant/**
+data/qdrant_smoke/
+data/qdrant_smoke/**
+data/smoke_docs/
+
+# College corpus — private / local only (never push real coursework)
+Year1/
+Year2/
+Year3/
+Year4/
+NeedsToBeSorted/
+documents/**
+!documents/.gitkeep
+
+# Local demo media — keep bulky recordings out of git
+Images/*
+!Images/CharlesGPTDemo.mp4
+*.mp4
+!Images/CharlesGPTDemo.mp4
+*.mov
+*.mkv
+
+# Projects/ is tracked for showcase — but skip local junk / huge datasets / secrets
+Projects/**/.env
+Projects/**/*.pem
+Projects/**/*.key
+Projects/**/target/
+Projects/**/*.jar
+Projects/**/CICIDS2017/
+Projects/**/*.pcap
+Projects/**/*.csv
+Projects/**/backups/
+Projects/**/backups-dev/
+Projects/**/*.db
+Projects/**/dist/
+Projects/**/build/
+
+# Projects/ is intentionally tracked (your own work to showcase)
+# Use demo_corpus/ for public clones that lack Year1–4 materials.
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Keep directory placeholders
+!data/sqlite/.gitkeep
+!data/qdrant/.gitkeep

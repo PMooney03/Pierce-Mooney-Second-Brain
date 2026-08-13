@@ -1,0 +1,23 @@
+# Local development only — PostgreSQL for the Spring Boot backend.
+# Do NOT point this at staging or production databases.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: networkops-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-networkops}
+      POSTGRES_USER: ${POSTGRES_USER:-networkops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-networkops}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - networkops_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  networkops_postgres_data:

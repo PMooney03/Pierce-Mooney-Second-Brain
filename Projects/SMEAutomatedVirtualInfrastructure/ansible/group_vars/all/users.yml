@@ -1,0 +1,23 @@
+# Central user definition for SME infrastructure and Flask GUI.
+# Single source of truth: Ansible provisions these users on all VMs and exports
+# username + hashed_password + role to users.json for the Flask control plane.
+#
+# Generate hashed_password with Python (Werkzeug):
+#   python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('YourPassword'))"
+#
+# Generate ssh_public_key with: ssh-keygen -t ed25519 -C 'user@example' -f key -N ''
+#   Then paste the contents of key.pub (one line).
+
+sme_central_users_enabled: true
+
+sme_users:
+  - username: sme-admin
+    # Generate with: python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('Admin123!'))"
+    hashed_password: "pbkdf2:sha256:600000$8VHxKqL2$3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
+    role: admin
+    ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleAdminKeyReplaceWithRealKey sme-admin@sme.local"
+
+  - username: operator
+    hashed_password: "pbkdf2:sha256:600000$AnotherSalt$ReplaceWithRealHashFromWerkzeugGenerateWithPython"
+    role: user
+    ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOperatorKeyReplaceWithRealKey operator@sme.local"

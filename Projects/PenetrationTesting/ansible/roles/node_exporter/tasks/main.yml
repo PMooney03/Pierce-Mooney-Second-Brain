@@ -1,0 +1,56 @@
+---
+- name: Install node_exporter package (Debian family)
+  ansible.builtin.apt:
+    name: "{{ node_exporter_package }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Configure node_exporter defaults file
+  ansible.builtin.lineinfile:
+    path: /etc/default/prometheus-node-exporter
+    regexp: '^#?ARGS='
+    line: 'ARGS="--web.listen-address={{ node_exporter_listen_address }}"'
+    create: true
+    mode: "0644"
+  when:
+    - ansible_os_family == "Debian"
+  notify: Restart node_exporter
+
+- name: Ensure node_exporter systemd override directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/prometheus-node-exporter.service.d
+    state: directory
+    mode: "0755"
+  when: ansible_os_family == "Debian"
+
+- name: Configure node_exporter systemd override (listen on all interfaces)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus-node-exporter.service.d/override.conf
+    mode: "0644"
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/prometheus-node-exporter --web.listen-address={{ node_exporter_listen_address }}
+  when: ansible_os_family == "Debian"
+  notify: Restart node_exporter
+
+- name: Ensure node_exporter service is enabled
+  ansible.builtin.service:
+    name: "{{ node_exporter_service }}"
+    state: started
+    enabled: true
+  when: ansible_os_family == "Debian"
+
+- name: Wait for node_exporter metrics endpoint
+  ansible.builtin.wait_for:
+    port: "{{ node_exporter_port }}"
+    host: "127.0.0.1"
+    timeout: 30
+  when: ansible_os_family == "Debian"
+
+- name: Record node_exporter provisioning
+  ansible.builtin.copy:
+    dest: /etc/enterprise-pentest-lab/node-exporter.done
+    mode: "0644"
+    content: "node_exporter_port={{ node_exporter_port }}\nprovisioned={{ ansible_facts['date_time']['iso8601'] }}\n"

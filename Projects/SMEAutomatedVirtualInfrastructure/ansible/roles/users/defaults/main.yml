@@ -1,0 +1,6 @@
+---
+# Group names for role-based access. admin → sme_admin_group (sudo); user → sme_user_group (no sudo).
+sme_admin_group: sme-admin
+sme_user_group: sme-user
+# Sudoers file for SME users (drop-in under /etc/sudoers.d/).
+sme_sudoers_file: /etc/sudoers.d/sme-users

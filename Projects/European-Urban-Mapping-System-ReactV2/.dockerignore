@@ -1,0 +1,13 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+.env
+.env.*
+certs
+frontend/node_modules
+node_modules
+*.md
+.cursor
+.vscode
+agent-transcripts
