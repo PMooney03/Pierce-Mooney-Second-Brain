@@ -4,9 +4,11 @@
 
 CharlesGPT is a private knowledge product for one student’s materials. It indexes PDFs, Word docs, and source files from college years and portfolio projects, retrieves evidence with hybrid search (SQLite FTS5 + local Qdrant), and answers through a local Ollama model while showing *which* files, pages, and sections grounded the reply.
 
-It is local on purpose: **keep it free** (Ollama + open-source stack, no per-token API costs) and **keep it private** (coursework never leaves the machine). Built end-to-end: ingestion pipeline, retrieval stack, FastAPI backend, React UI, and product surfaces for chat, search, library, memory, and project browsing.
+It is local on purpose: **keep it free** (Ollama + open-source stack, no per-token API costs) and **keep it private** (coursework never leaves the machine). Built end-to-end: ingestion pipeline, retrieval stack, FastAPI backend, React UI, and product surfaces for chat, search, library, memory, and project browsing. The model is trained on and retrieves knowledge from my four years of college work, including lectures, labs, assignments and projects, alongside projects I have completed since graduating. However, the original lecture and lab materials are excluded from GitHub for privacy and copyright reasons.
 
 ---
+
+
 
 ## What makes it interesting
 
@@ -23,6 +25,8 @@ That combination — retrieval quality, UX, and deliberately avoiding paid cloud
 
 ---
 
+
+
 ## Demo
 
 [Download / play the demo video](Images/CharlesGPTDemo.mp4) (~40MB)
@@ -30,6 +34,8 @@ That combination — retrieval quality, UX, and deliberately avoiding paid cloud
 Typical walkthrough: ask something about coursework → watch the retrieval map → read a cited answer → open a source chunk → browse a portfolio project folder.
 
 ---
+
+
 
 ## Product tour
 
@@ -39,7 +45,7 @@ Seven workspace pages. Screenshots below are from a local dark-mode run.
 
 Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework.
 
-![Chat page](Images/CharlesGPTHomepage.png)
+Chat page
 
 #### RAG + live retrieval map
 
@@ -49,47 +55,47 @@ When you send a prompt, the map expands from the CharlesGPT hub through years / 
 
 That makes the pipeline inspectable: you can see *that* RAG ran, *what* was scanned, and *which* files were probed — not a black-box chat API.
 
-![Live retrieval while answering](Images/PromptRetrieval.png)
-
-![Retrieval map settling between prompts](Images/BetweenPromptsRetrieval.png)
+Live retrieval while answeringRetrieval map settling between prompts
 
 ### Memory
 
 Bank of facts CharlesGPT has learned — explicit “remember that…” notes plus routes learned from prior chats. Manageable from Chat (`what do you remember`, `forget everything`).
 
-![Memory page](Images/MemoryStorage.png)
+Memory page
 
 ### Search
 
 Hybrid / keyword / semantic retrieval **without** LLM generation — just ranked evidence chunks from your files. Useful when you want the source, not a rewritten answer.
 
-![Search page](Images/SearchFilePage.png)
+Search page
 
 ### Library
 
 Indexed documents with filters (filename, year, module, type) and **Run ingest** for incremental updates. Originals on disk are never modified.
 
-![Library page](Images/LibraryPage.png)
+Library page
 
 ### Modules
 
 Module cards derived from path metadata on indexed docs — year + document counts across the corpus.
 
-![Modules page](Images/ModulesPage.png)
+Modules page
 
 ### Projects
 
 Portfolio folders under `Projects/`. Click in to browse structure and preview files (README, code, config) without leaving the app.
 
-![Projects page](Images/ProjectsPage.png)
+Projects page
 
 ### Knowledge
 
 High-level profile: years, modules, and project folders linked to indexed evidence — a snapshot of what the system knows about your archive.
 
-![Knowledge page](Images/KnowledgePage.png)
+Knowledge page
 
 ---
+
+
 
 ## How it works
 
@@ -126,6 +132,8 @@ The LLM answers the turn. **SQLite, Qdrant, and the files** are the long-term kn
 
 ---
 
+
+
 ## Technical decisions
 
 
@@ -142,6 +150,8 @@ The LLM answers the turn. **SQLite, Qdrant, and the files** are the long-term kn
 
 ---
 
+
+
 ## Example user flow
 
 1. Student asks: *“Give me an interview answer about my Linux experience.”*
@@ -155,6 +165,8 @@ For non-academic asks (“what’s the weather?”, “remember that I prefer sh
 
 ---
 
+
+
 ## Tech stack
 
 - **Backend:** Python, FastAPI, Pydantic Settings  
@@ -165,6 +177,8 @@ For non-academic asks (“what’s the weather?”, “remember that I prefer sh
 - **Runtime:** Windows-friendly local `127.0.0.1` services
 
 ---
+
+
 
 ## Privacy, cost, and local-first design
 
@@ -180,13 +194,19 @@ Local is a product choice, not just a deployment detail:
 
 ---
 
+
+
 ## Setup
+
+
 
 ### Prerequisites
 
 - Python 3.11+  
 - Node.js 20+  
 - [Ollama](https://ollama.com/download) running locally
+
+
 
 ### Backend
 
@@ -203,10 +223,14 @@ ollama pull qwen2.5:14b
 ollama pull nomic-embed-text
 ```
 
+
+
 ### Corpus
 
 - **Your machine:** leave `DOCUMENTS_PATH` empty → indexes `Year`* + `Projects`  
 - **Public clone:** set `DOCUMENTS_PATH=demo_corpus` in `backend/.env`
+
+
 
 ### Ingest + run
 
@@ -240,6 +264,8 @@ pytest -q
 ```
 
 ---
+
+
 
 ## Limitations / roadmap
 
