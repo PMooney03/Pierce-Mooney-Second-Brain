@@ -58,6 +58,8 @@ Images/*
 !Images/ModulesPage.png
 !Images/ProjectsPage.png
 !Images/KnowledgePage.png
+!Images/PromptRetrieval.png
+!Images/BetweenPromptsRetrieval.png
 *.mp4
 !Images/CharlesGPTDemo.mp4
 *.mov

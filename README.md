@@ -13,8 +13,8 @@ It is local on purpose: **keep it free** (Ollama + open-source stack, no per-tok
 Most “chat with PDFs” demos stop at a single folder and a hosted API key. CharlesGPT is designed as a **local-first system** over a multi-year corpus — free to run, private by default:
 
 - **Hybrid retrieval** — keyword (FTS5) + semantic (Qdrant) fused for exact phrases *and* vague questions  
+- **Live RAG visualisation** — chat shows retrieval expanding through years → modules → files, with scan progress and a probing file list — not a black-box completion  
 - **Grounded answers** — responses cite chunks; the model is not treated as memory  
-- **Live retrieval map** — chat shows search expanding through years → modules → files while the answer is forming  
 - **Product, not a script** — modes (Ask, Recall, Explain, Connect, Revision, Interview, Project), library ingest, memory, and a `Projects/` file browser  
 - **Free to operate** — Ollama + SQLite + embedded Qdrant; no OpenAI/Anthropic bill that grows with every question and ingest  
 - **Privacy by architecture** — binds to `127.0.0.1`, indexes stay on disk, college files are never modified or uploaded
@@ -37,9 +37,21 @@ Seven workspace pages. Screenshots below are from a local dark-mode run.
 
 ### Chat
 
-Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. While retrieving, a live map shows years → modules → files. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework.
+Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework.
 
 ![Chat page](Images/CharlesGPTHomepage.png)
+
+#### RAG + live retrieval map
+
+CharlesGPT is a **Retrieval-Augmented Generation (RAG)** system: before the local Ollama model writes an answer, hybrid search pulls evidence from your indexed files (SQLite FTS5 keyword + Qdrant semantic vectors). The chat UI does not hide that step — it **visualises retrieval in real time**.
+
+When you send a prompt, the map expands from the CharlesGPT hub through years / modules / files. Status shows scan progress (e.g. hundreds of files in a few seconds), while a **Probing** panel lists the documents currently under consideration. Matches light up as hybrid retrieval ranks evidence; only then does the model generate a cited answer. **Map: KEEP / FADE** controls whether the settled graph stays on screen between turns.
+
+That makes the pipeline inspectable: you can see *that* RAG ran, *what* was scanned, and *which* files were probed — not a black-box chat API.
+
+![Live retrieval while answering](Images/PromptRetrieval.png)
+
+![Retrieval map settling between prompts](Images/BetweenPromptsRetrieval.png)
 
 ### Memory
 
