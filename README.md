@@ -45,7 +45,7 @@ Seven workspace pages. Screenshots below are from a local dark-mode run.
 
 Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework.
 
-Chat page
+![Chat page](Images/CharlesGPTHomepage.png)
 
 #### RAG + live retrieval map
 
@@ -55,43 +55,45 @@ When you send a prompt, the map expands from the CharlesGPT hub through years / 
 
 That makes the pipeline inspectable: you can see *that* RAG ran, *what* was scanned, and *which* files were probed — not a black-box chat API.
 
-Live retrieval while answeringRetrieval map settling between prompts
+![Live retrieval while answering](Images/PromptRetrieval.png)
+
+![Retrieval map settling between prompts](Images/BetweenPromptsRetrieval.png)
 
 ### Memory
 
 Bank of facts CharlesGPT has learned — explicit “remember that…” notes plus routes learned from prior chats. Manageable from Chat (`what do you remember`, `forget everything`).
 
-Memory page
+![Memory page](Images/MemoryStorage.png)
 
 ### Search
 
 Hybrid / keyword / semantic retrieval **without** LLM generation — just ranked evidence chunks from your files. Useful when you want the source, not a rewritten answer.
 
-Search page
+![Search page](Images/SearchFilePage.png)
 
 ### Library
 
 Indexed documents with filters (filename, year, module, type) and **Run ingest** for incremental updates. Originals on disk are never modified.
 
-Library page
+![Library page](Images/LibraryPage.png)
 
 ### Modules
 
 Module cards derived from path metadata on indexed docs — year + document counts across the corpus.
 
-Modules page
+![Modules page](Images/ModulesPage.png)
 
 ### Projects
 
 Portfolio folders under `Projects/`. Click in to browse structure and preview files (README, code, config) without leaving the app.
 
-Projects page
+![Projects page](Images/ProjectsPage.png)
 
 ### Knowledge
 
 High-level profile: years, modules, and project folders linked to indexed evidence — a snapshot of what the system knows about your archive.
 
-Knowledge page
+![Knowledge page](Images/KnowledgePage.png)
 
 ---
 
