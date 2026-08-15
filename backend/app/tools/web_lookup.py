@@ -153,13 +153,17 @@ def snippets_to_citations(snippets: list[WebSnippet]):
             SourceCitation(
                 document_id=0,
                 chunk_id=f"{prefix}:{i}",
-                filename=f"Web · {s.title}"[:120],
+                filename=(
+                    f"DuckDuckGo · {s.title}"
+                    if s.provider == "DuckDuckGo"
+                    else f"Web · {s.title}"
+                )[:120],
                 filepath=s.url or "https://duckduckgo.com/",
                 page=None,
                 heading=s.provider,
                 text_preview=s.text[:420],
                 year=None,
-                module="Web lookup",
+                module="DuckDuckGo" if s.provider == "DuckDuckGo" else "Web lookup",
             )
         )
     return cites

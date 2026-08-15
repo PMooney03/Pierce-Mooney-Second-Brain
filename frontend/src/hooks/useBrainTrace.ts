@@ -295,6 +295,12 @@ function applyEvent(state: BrainGraphState, event: TraceEvent): BrainGraphState 
     return emptyBrainState()
   }
 
+  if (kind === 'retrieval') {
+    const msg = String(event.message || '')
+    if (msg) next.statusText = msg
+    return next
+  }
+
   return next
 }
 

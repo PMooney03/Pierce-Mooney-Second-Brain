@@ -14,6 +14,12 @@ logger = get_logger(__name__)
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".docx",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".bmp",
     ".py",
     ".java",
     ".js",
@@ -72,6 +78,9 @@ SKIP_DIR_NAMES = {
     "vendor",
     ".turbo",
     ".cache",
+    # Portfolio README screenshots / demo assets (not coursework)
+    "Images",
+    "images",
 }
 
 

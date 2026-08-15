@@ -15,6 +15,7 @@ It is local on purpose: **keep it free** (Ollama + open-source stack, no per-tok
 Most “chat with PDFs” demos stop at a single folder and a hosted API key. CharlesGPT is designed as a **local-first system** over a multi-year corpus — free to run, private by default:
 
 - **Hybrid retrieval** — keyword (FTS5) + semantic (Qdrant) fused for exact phrases *and* vague questions  
+- **Local OCR** — PNG/JPEG/WebP (and scanned PDF pages with no text layer) via RapidOCR on-device  
 - **Live RAG visualisation** — chat shows retrieval expanding through years → modules → files, with scan progress and a probing file list — not a black-box completion  
 - **Grounded answers** — responses cite chunks; the model is not treated as memory  
 - **Product, not a script** — modes (Ask, Recall, Explain, Connect, Revision, Interview, Project), library ingest, memory, and a `Projects/` file browser  
@@ -174,7 +175,7 @@ For non-academic asks (“what’s the weather?”, “remember that I prefer sh
 - **Backend:** Python, FastAPI, Pydantic Settings  
 - **Data:** SQLite (FTS5), Qdrant (local embedded)  
 - **LLM / embeddings:** Ollama (default chat `qwen2.5:14b`, embed `nomic-embed-text`)  
-- **Ingest:** PDF / DOCX / common source & text formats  
+- **Ingest:** PDF / DOCX / images (local OCR) / common source & text formats  
 - **Frontend:** React, TypeScript, Vite  
 - **Runtime:** Windows-friendly local `127.0.0.1` services
 
@@ -273,10 +274,11 @@ pytest -q
 
 **Today**
 
-- PPTX and OCR image text not ingested yet  
-- First full ingest is slow on large corpora (per-chunk local embeddings)  
+- PPTX not ingested yet (slide images can still be OCR'd if exported as PNG/JPEG)  
+- First full ingest is slow on large corpora (per-chunk local embeddings + OCR on image-heavy folders)  
 - No cross-encoder reranker (hybrid fusion only)  
 - Web enrichment is Instant Answer style, not a browsing agent
+- Chat is text-only (no image upload in the UI yet)
 
 **Next**
 
@@ -284,7 +286,7 @@ pytest -q
 2. Streaming ingest progress
 3. Optional local cross-encoder rerank
 4. Richer knowledge graph from evidence (tech/topics with citations)
-
+5. Optional chat image attach (vision model)
 ---
 
 Built as a portfolio system: real retrieval constraints, real local data, deliberately **free to operate**, and a UI that makes the pipeline visible — not a thin wrapper around a paid hosted chat API.

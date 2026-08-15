@@ -346,6 +346,71 @@ def _hits_to_chunks(hits: list[SearchHit]) -> list[ChunkRecord]:
     return [h.chunk for h in hits]
 
 
+def _citation_is_duckduckgo(source: Any) -> bool:
+    if isinstance(source, dict):
+        heading = str(source.get("heading") or "")
+        chunk_id = str(source.get("chunk_id") or "")
+        module = str(source.get("module") or "")
+    else:
+        heading = str(getattr(source, "heading", None) or "")
+        chunk_id = str(getattr(source, "chunk_id", None) or "")
+        module = str(getattr(source, "module", None) or "")
+    return (
+        heading == "DuckDuckGo"
+        or chunk_id.startswith("web:ddg")
+        or module == "DuckDuckGo"
+        or (module == "Web lookup" and "duckduckgo" in heading.lower())
+    )
+
+
+def _citation_is_web(source: Any) -> bool:
+    if isinstance(source, dict):
+        chunk_id = str(source.get("chunk_id") or "")
+        module = str(source.get("module") or "")
+    else:
+        chunk_id = str(getattr(source, "chunk_id", None) or "")
+        module = str(getattr(source, "module", None) or "")
+    return chunk_id.startswith("web:") or module == "Web lookup"
+
+
+def _citation_is_archive(source: Any) -> bool:
+    if isinstance(source, dict):
+        chunk_id = str(source.get("chunk_id") or "")
+        doc_id = int(source.get("document_id") or 0)
+    else:
+        chunk_id = str(getattr(source, "chunk_id", None) or "")
+        doc_id = int(getattr(source, "document_id", 0) or 0)
+    if chunk_id.startswith("web:") or chunk_id.startswith("tool:"):
+        return False
+    return doc_id > 0 or bool(chunk_id)
+
+
+def _retrieval_kind(*, used_archive: bool, sources: list[Any]) -> str:
+    """Label how evidence was gathered for the UI."""
+    has_ddg = any(_citation_is_duckduckgo(s) for s in sources)
+    has_web = any(_citation_is_web(s) for s in sources)
+    has_archive = used_archive or any(_citation_is_archive(s) for s in sources)
+    if has_archive and has_ddg:
+        return "archive+web"
+    if has_archive and has_web:
+        return "archive+web"
+    if has_archive:
+        return "archive"
+    if has_ddg:
+        return "web"
+    if has_web:
+        return "web"
+    return "tools"
+
+
+def _duckduckgo_status(sources: list[Any], *, with_archive: bool) -> str | None:
+    if not any(_citation_is_duckduckgo(s) for s in sources):
+        return None
+    if with_archive:
+        return "DuckDuckGo web lookup (alongside your college files)…"
+    return "DuckDuckGo web lookup (not searching your college files)…"
+
+
 def _citation_payload(s: SourceCitation) -> dict[str, Any]:
     return {
         "document_id": s.document_id,
@@ -533,6 +598,7 @@ class ChatService:
         answer: str,
         mode: ChatMode,
         sources: list[dict[str, Any]],
+        retrieval: str | None = None,
     ) -> dict[str, Any]:
         """Save chat + learn. Returns a payload suitable for a stream `learned` event."""
         out: dict[str, Any] = {
@@ -554,6 +620,7 @@ class ChatService:
                     content=answer,
                     mode=mode.value,
                     sources=sources,
+                    retrieval=retrieval,
                 )
                 out["session_saved"] = True
             ids = learn_from_turn(self.db, question=message, answer=answer, sources=sources)
@@ -601,21 +668,34 @@ class ChatService:
         if mode == ChatMode.ASK and not _wants_archive(message, prior, mode):
             yield {"event": "status", "message": "Checking tools…", "node": "reason"}
             tools = self._tool_bundle(message, mode)
-            if tools.sources:
+            ddg_msg = _duckduckgo_status(tools.sources, with_archive=False)
+            if ddg_msg:
+                yield {"event": "status", "message": ddg_msg, "node": "web"}
+                yield {
+                    "event": "retrieval",
+                    "kind": "web",
+                    "provider": "DuckDuckGo",
+                    "message": ddg_msg,
+                }
+            elif tools.sources:
                 yield {"event": "status", "message": "Gathering live context…", "node": "web"}
-                for s in tools.sources:
-                    node = "weather" if (s.heading or "").lower() == "open-meteo" or "weather" in (s.filename or "").lower() else "web"
-                    if (s.module or "") == "Tools":
-                        node = "calc"
-                    yield {"event": "file", "source": _citation_payload(s), "node": node}
+            for s in tools.sources:
+                node = "weather" if (s.heading or "").lower() == "open-meteo" or "weather" in (s.filename or "").lower() else "web"
+                if (s.module or "") == "Tools":
+                    node = "calc"
+                if _citation_is_duckduckgo(s):
+                    node = "web"
+                yield {"event": "file", "source": _citation_payload(s), "node": node}
             if tools.direct_answer:
                 sources = [_citation_payload(s) for s in tools.sources]
+                retrieval = _retrieval_kind(used_archive=False, sources=sources)
                 learned = self._persist_turn(
                     session_id,
                     message=message,
                     answer=tools.direct_answer,
                     mode=mode,
                     sources=sources,
+                    retrieval=retrieval,
                 )
                 yield {
                     "event": "answer",
@@ -623,6 +703,7 @@ class ChatService:
                     "sources": sources,
                     "mode": mode.value,
                     "model": "tools",
+                    "retrieval": retrieval,
                 }
                 yield learned
                 yield {"event": "done"}
@@ -635,12 +716,14 @@ class ChatService:
                 web_sources=tools.sources,
             )
             sources = [_citation_payload(s) for s in result.sources]
+            retrieval = _retrieval_kind(used_archive=False, sources=sources)
             learned = self._persist_turn(
                 session_id,
                 message=message,
                 answer=result.answer,
                 mode=mode,
                 sources=sources,
+                retrieval=retrieval,
             )
             yield {
                 "event": "answer",
@@ -648,6 +731,7 @@ class ChatService:
                 "sources": sources,
                 "mode": result.mode,
                 "model": result.model,
+                "retrieval": retrieval,
             }
             yield learned
             yield {"event": "done"}
@@ -694,7 +778,12 @@ class ChatService:
             yield trace.emit_sources_selected([c.chunk_id for c in cites])
             sources = [_citation_payload(s) for s in cites]
             learned = self._persist_turn(
-                session_id, message=message, answer=answer, mode=mode, sources=sources
+                session_id,
+                message=message,
+                answer=answer,
+                mode=mode,
+                sources=sources,
+                retrieval="archive",
             )
             yield {
                 "event": "answer",
@@ -702,6 +791,7 @@ class ChatService:
                 "sources": sources,
                 "mode": mode.value,
                 "model": "inventory+fts5",
+                "retrieval": "archive",
             }
             yield learned
             yield trace.emit_trace_complete()
@@ -714,6 +804,17 @@ class ChatService:
         ) or mode == ChatMode.PROJECT
         expand_modules = bool(year and _is_year_overview(message))
 
+        yield {
+            "event": "status",
+            "message": "Searching your college archive (RAG)…",
+            "node": "archive",
+        }
+        yield {
+            "event": "retrieval",
+            "kind": "archive",
+            "provider": "local",
+            "message": "Searching your college archive (RAG)…",
+        }
         yield from trace.iter_pre_search_trace(
             self.db,
             query=message,
@@ -796,20 +897,37 @@ class ChatService:
                 mem_note = relevant_memories_block(self.db, message) or ""
             tools = type(tools)(note=mem_note, sources=[], direct_answer=None)
         else:
-            yield {"event": "status", "message": "Enriching with tools…", "node": "web"}
+            ddg_msg = _duckduckgo_status(tools.sources, with_archive=True)
+            if ddg_msg:
+                yield {"event": "status", "message": ddg_msg, "node": "web"}
+                yield {
+                    "event": "retrieval",
+                    "kind": "archive+web",
+                    "provider": "DuckDuckGo",
+                    "message": ddg_msg,
+                }
+            elif tools.sources:
+                yield {"event": "status", "message": "Enriching with tools…", "node": "web"}
             for s in tools.sources:
                 node = "web"
                 if (s.heading or "") == "Open-Meteo" or "Weather" in (s.filename or ""):
                     node = "weather"
                 if (s.module or "") == "Tools":
                     node = "calc"
+                if _citation_is_duckduckgo(s):
+                    node = "web"
                 yield {"event": "file", "source": _citation_payload(s), "node": node}
 
         if mode == ChatMode.SEARCH:
             sources = [_citation_payload(s) for s in cites]
             yield trace.emit_sources_selected([c.chunk_id for c in cites])
             learned = self._persist_turn(
-                session_id, message=message, answer="", mode=mode, sources=sources
+                session_id,
+                message=message,
+                answer="",
+                mode=mode,
+                sources=sources,
+                retrieval="archive",
             )
             yield {
                 "event": "answer",
@@ -817,6 +935,7 @@ class ChatService:
                 "sources": sources,
                 "mode": mode.value,
                 "model": self.generator.ollama.chat_model,
+                "retrieval": "archive",
             }
             yield learned
             yield trace.emit_trace_complete()
@@ -848,12 +967,14 @@ class ChatService:
                 + "\n".join(bullets)
             )
         sources = [_citation_payload(s) for s in result.sources]
+        retrieval = _retrieval_kind(used_archive=True, sources=sources)
         learned = self._persist_turn(
             session_id,
             message=message,
             answer=result.answer,
             mode=mode,
             sources=sources,
+            retrieval=retrieval,
         )
         yield {
             "event": "answer",
@@ -861,6 +982,7 @@ class ChatService:
             "sources": sources,
             "mode": result.mode,
             "model": result.model,
+            "retrieval": retrieval,
         }
         yield learned
         yield trace.emit_trace_complete()

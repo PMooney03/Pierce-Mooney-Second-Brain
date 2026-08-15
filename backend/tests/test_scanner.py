@@ -30,6 +30,7 @@ def test_scan_finds_pdf_docx_and_code(tmp_path: Path) -> None:
     (tmp_path / "Year1" / "Mod" / "notes.pdf").write_bytes(b"%PDF-1.4")
     (tmp_path / "Year1" / "Mod" / "essay.docx").write_bytes(b"PK")
     (tmp_path / "Year1" / "Mod" / "slides.pptx").write_bytes(b"skip")
+    (tmp_path / "Year1" / "Mod" / "board.png").write_bytes(b"\x89PNG\r\n")
     (tmp_path / "Projects" / "Demo").mkdir(parents=True)
     (tmp_path / "Projects" / "Demo" / "main.py").write_text("print('hi')\n", encoding="utf-8")
     found = scan_documents(tmp_path)
@@ -37,4 +38,5 @@ def test_scan_finds_pdf_docx_and_code(tmp_path: Path) -> None:
     assert "notes.pdf" in names
     assert "essay.docx" in names
     assert "main.py" in names
+    assert "board.png" in names
     assert "slides.pptx" not in names

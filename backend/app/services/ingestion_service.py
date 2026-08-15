@@ -15,6 +15,7 @@ from app.ingestion.base_parser import ParserRegistry
 from app.ingestion.chunker import DocumentChunker
 from app.ingestion.code_parser import CodeParseError, CodeParser
 from app.ingestion.docx_parser import DocxParseError, DocxParser
+from app.ingestion.image_parser import ImageParseError, ImageParser
 from app.ingestion.metadata import extract_path_metadata
 from app.ingestion.pdf_parser import PdfParseError, PdfParser
 from app.ingestion.scanner import ScannedFile, scan_documents
@@ -65,6 +66,8 @@ class IngestionService:
         self.registry.register(PdfParser())
         self.registry.register(DocxParser())
         self.registry.register(CodeParser())
+        if settings.ocr_enabled:
+            self.registry.register(ImageParser())
 
     def run(self, *, remove_missing: bool = True) -> IngestionStats:
         root = self.settings.resolve_documents_path()
@@ -127,7 +130,7 @@ class IngestionService:
 
         try:
             extracted = parser.parse(scanned.path, scanned.relative_path)
-        except (PdfParseError, DocxParseError, CodeParseError):
+        except (PdfParseError, DocxParseError, CodeParseError, ImageParseError):
             raise
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(str(exc)) from exc

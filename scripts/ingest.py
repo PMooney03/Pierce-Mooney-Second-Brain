@@ -35,13 +35,14 @@ def _backend_reachable(settings) -> bool:
 
 
 def _api_ingest(settings) -> int:
-    url = f"{_backend_base(settings)}/api/ingest"
-    print(f"Backend is running — ingesting via {url}")
-    print("(This can take a while for a large corpus. Leave this window open.)\n")
+    base = _backend_base(settings)
+    url = f"{base}/api/ingest"
+    status_url = f"{base}/api/ingest/status"
+    print(f"Backend is running — starting background ingest via {url}")
+    print("(OCR/embed can take a while. Chat should stay usable. Leave this window open.)\n")
     sys.stdout.flush()
 
-    # No overall timeout — full college corpora can take a long time.
-    timeout = httpx.Timeout(None, connect=10.0)
+    timeout = httpx.Timeout(30.0, connect=10.0)
     try:
         with httpx.Client(timeout=timeout) as client:
             r = client.post(url)
@@ -49,7 +50,27 @@ def _api_ingest(settings) -> int:
                 print(f"ERROR: ingest API returned {r.status_code}")
                 print(r.text[:2000])
                 return 1
-            data = r.json()
+
+            import time
+
+            while True:
+                s = client.get(status_url)
+                if s.status_code >= 400:
+                    print(f"ERROR: status API returned {s.status_code}")
+                    print(s.text[:2000])
+                    return 1
+                job = s.json()
+                status = job.get("status")
+                if status == "running":
+                    print("… still running")
+                    sys.stdout.flush()
+                    time.sleep(2.0)
+                    continue
+                if status == "error":
+                    print(f"ERROR: {job.get('error')}")
+                    return 1
+                data = job.get("result") or {}
+                break
     except httpx.HTTPError as exc:
         print(f"ERROR: ingest API request failed: {exc}")
         print("Is uvicorn still running? Start it, then re-run this script.")

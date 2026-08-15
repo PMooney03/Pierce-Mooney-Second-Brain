@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.deps import get_db, get_ollama, get_qdrant
 from app.retrieval.embeddings import EmbeddingService
+from app.services.ingest_jobs import get_ingest_status, start_ingest_job
 from app.services.ingestion_service import IngestionService
 
 router = APIRouter(tags=["documents"])
@@ -57,15 +58,42 @@ class ChunkOut(BaseModel):
     document_type: str | None = None
 
 
-@router.post("/api/ingest", response_model=IngestResponse)
-def ingest_documents() -> IngestResponse:
+def _run_ingest() -> dict[str, Any]:
     settings = get_settings()
     db = get_db()
     qdrant = get_qdrant()
     embeddings = EmbeddingService(get_ollama())
     service = IngestionService(settings, db, qdrant, embeddings)
-    stats = service.run()
-    return IngestResponse(**stats.as_dict())
+    return service.run().as_dict()
+
+
+@router.get("/api/ingest")
+def ingest_info() -> dict[str, Any]:
+    """Browsers only GET — how to run ingest + current job status."""
+    return {
+        "detail": "POST /api/ingest starts a background job. Poll GET /api/ingest/status. "
+        "Or use Library → Run ingest, or: python scripts/ingest.py",
+        "docs": "/docs",
+        "ui": "http://127.0.0.1:5173",
+        "job": get_ingest_status(),
+    }
+
+
+@router.get("/api/ingest/status")
+def ingest_status() -> dict[str, Any]:
+    return get_ingest_status()
+
+
+@router.post("/api/ingest")
+def ingest_documents() -> dict[str, Any]:
+    """Start incremental ingest in a background thread (keeps chat responsive)."""
+    job = start_ingest_job(_run_ingest)
+    return {
+        "status": job["status"],
+        "started_at": job["started_at"],
+        "message": "Ingest running in the background. Poll GET /api/ingest/status.",
+        "job": job,
+    }
 
 
 @router.get("/api/documents", response_model=list[DocumentOut])

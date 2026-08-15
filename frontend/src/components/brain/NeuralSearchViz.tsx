@@ -21,15 +21,6 @@ type Props = {
 
 const ABSORB_R = 118
 
-function hexPoints(cx: number, cy: number, r: number): string {
-  const pts: string[] = []
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 3) * i - Math.PI / 2
-    pts.push(`${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`)
-  }
-  return pts.join(' ')
-}
-
 function hexVerts(cx: number, cy: number, r: number) {
   const pts: { x: number; y: number }[] = []
   for (let i = 0; i < 6; i++) {
@@ -85,10 +76,7 @@ export default function NeuralSearchViz({
     [graph.nodes],
   )
   const pulseChain = useMemo(() => new Set(pathIdsToRoot(graph.nodes, pulseToId)), [graph.nodes, pulseToId])
-  const sealGems = useMemo(() => hexVerts(CX, CY, expanded ? 76 : 64), [expanded])
-  const hexOuter = useMemo(() => hexPoints(CX, CY, expanded ? 92 : 78), [expanded])
-  const hexMid = useMemo(() => hexPoints(CX, CY, expanded ? 78 : 66), [expanded])
-  const hexPulse = useMemo(() => hexPoints(CX, CY, 70), [])
+  const sealGems = useMemo(() => hexVerts(CX, CY, expanded ? 70 : 58), [expanded])
 
   const absorbed = useMemo(() => {
     const docs = Object.values(graph.nodes).filter(
@@ -186,39 +174,56 @@ export default function NeuralSearchViz({
       >
         <defs>
           <radialGradient id="nbWorld" cx="50%" cy="48%" r="70%">
-            <stop offset="0%" stopColor="#134e4a" stopOpacity="0.22" />
-            <stop offset="45%" stopColor="#0f766e" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#0a1628" stopOpacity="0" />
+            <stop offset="0%" stopColor="#1a2a38" stopOpacity="0.35" />
+            <stop offset="40%" stopColor="#0f766e" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="#070d14" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="nbWorldScan" cx="50%" cy="48%" r="72%">
-            <stop offset="0%" stopColor="#0f766e" stopOpacity="0.22" />
-            <stop offset="40%" stopColor="#14b8a6" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#0a1628" stopOpacity="0" />
+            <stop offset="0%" stopColor="#134e4a" stopOpacity="0.28" />
+            <stop offset="45%" stopColor="#14b8a6" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#070d14" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id="nbSealGlow" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-            <stop offset="40%" stopColor="#0f766e" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#0a7a6a" stopOpacity="0" />
+          <radialGradient id="nbSealGlow" cx="40%" cy="35%" r="68%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.55)" />
+            <stop offset="35%" stopColor="#99f6e4" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#0f766e" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="nbNodeGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fde8d4" stopOpacity="0.55" />
+            <stop offset="55%" stopColor="#f5b89a" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#f5b89a" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="nbNodeGlowTeal" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ccfbf1" stopOpacity="0.5" />
+            <stop offset="55%" stopColor="#14b8a6" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
           </radialGradient>
           <linearGradient id="nbSealFace" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#ecfeff" stopOpacity="0.95" />
-            <stop offset="45%" stopColor="#99f6e4" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#0f766e" stopOpacity="0.35" />
+            <stop offset="0%" stopColor="#ecfeff" stopOpacity="0.75" />
+            <stop offset="50%" stopColor="#99f6e4" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#0f766e" stopOpacity="0.22" />
           </linearGradient>
           <linearGradient id="nbProbeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#14b8a6" stopOpacity="0" />
-            <stop offset="55%" stopColor="#2dd4bf" stopOpacity="0.45" />
-            <stop offset="100%" stopColor="#ccfbf1" stopOpacity="0.85" />
+            <stop offset="55%" stopColor="#2dd4bf" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#fde8d4" stopOpacity="0.75" />
           </linearGradient>
           <filter id="nbSoft" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="1.2" result="b" />
+            <feGaussianBlur stdDeviation="1.4" result="b" />
             <feMerge>
               <feMergeNode in="b" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
           <filter id="nbGlow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="3.5" result="b" />
+            <feGaussianBlur stdDeviation="2.8" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="nbBloom" x="-120%" y="-120%" width="340%" height="340%">
+            <feGaussianBlur stdDeviation="4.5" result="b" />
             <feMerge>
               <feMergeNode in="b" />
               <feMergeNode in="SourceGraphic" />
@@ -235,8 +240,29 @@ export default function NeuralSearchViz({
           height="800"
           fill={searching ? 'url(#nbWorldScan)' : 'url(#nbWorld)'}
         />
-        <g className="nb-field-lines" opacity={searching ? 0.35 : 0.18}>
-          {[180, 260, 340, 420].map((r) => (
+
+        {/* Quiet star dust — depth without noise */}
+        <g className="nb-stardust" opacity={searching ? 0.55 : 0.38}>
+          {[
+            [120, 140, 1.1],
+            [210, 520, 0.8],
+            [860, 180, 1.2],
+            [780, 620, 0.9],
+            [160, 680, 0.7],
+            [920, 420, 1.0],
+            [640, 110, 0.75],
+            [340, 90, 0.85],
+            [480, 700, 0.7],
+            [70, 360, 0.9],
+            [900, 300, 0.65],
+            [250, 280, 0.7],
+          ].map(([x, y, r], i) => (
+            <circle key={`dust-${i}`} className="nb-dust" cx={x} cy={y} r={r} />
+          ))}
+        </g>
+
+        <g className="nb-field-lines" opacity={searching ? 0.22 : 0.12}>
+          {[200, 300, 400].map((r) => (
             <circle key={r} cx={CX} cy={CY} r={r} fill="none" className="nb-field-ring" />
           ))}
         </g>
@@ -320,7 +346,7 @@ export default function NeuralSearchViz({
           {fadedNodes.map((n) =>
             n.type === 'brain' ? null : (
               <g key={`f-${n.id}`} className="nb-node state-faded">
-                <circle className="nb-hub" cx={n.x!} cy={n.y!} r={5} />
+                <circle className="nb-hub" cx={n.x!} cy={n.y!} r={3.5} />
               </g>
             ),
           )}
@@ -332,38 +358,42 @@ export default function NeuralSearchViz({
             const { lx, ly, anchor } = radialLabelOffset(
               n.x!,
               n.y!,
-              n.type === 'document' ? 18 : n.type === 'module' ? 20 : 16,
+              n.type === 'document' ? 16 : n.type === 'module' ? 18 : 14,
             )
             const lit = ['matched', 'selected', 'possible_match', 'searching'].includes(n.state)
             const selected = n.state === 'selected' || n.id === graph.selectedId
+            const warm = selected || n.state === 'matched' || n.state === 'possible_match'
+            const hubR =
+              n.type === 'document' ? (selected ? 6 : lit ? 5 : 3.8) : lit ? 7 : 5.2
 
             return (
               <g
                 key={n.id}
-                className={`nb-node type-${n.type} state-${n.state}${lit ? ' lit' : ''}`}
+                className={`nb-node type-${n.type} state-${n.state}${lit ? ' lit' : ''}${warm ? ' warm' : ''}`}
                 onClick={() => {
                   if (n.type === 'document') onSelectNode(n.id === graph.selectedId ? null : n.id)
                 }}
                 style={{ cursor: n.type === 'document' ? 'pointer' : 'default' }}
               >
-                {n.type === 'module' ? (
-                  <rect x={n.x! - 7} y={n.y! - 7} width={14} height={14} rx={3} className="nb-mod" />
-                ) : (
+                {lit ? (
                   <circle
-                    className="nb-hub"
+                    className="nb-halo"
                     cx={n.x!}
                     cy={n.y!}
-                    r={n.type === 'document' ? (selected ? 7 : 5) : lit ? 9 : 7}
+                    r={hubR * 3.2}
+                    fill={warm ? 'url(#nbNodeGlow)' : 'url(#nbNodeGlowTeal)'}
+                    filter="url(#nbBloom)"
                   />
-                )}
-                {selected && n.type === 'document' ? (
-                  <text className="nb-check" x={n.x! + 11} y={n.y! + 4}>
-                    ✓
-                  </text>
                 ) : null}
-                <text className="nb-label" x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle">
-                  {shortLabel(n.label, n.type === 'document' ? 20 : n.type === 'module' ? 16 : 12)}
-                </text>
+                <circle className="nb-hub" cx={n.x!} cy={n.y!} r={hubR} />
+                {selected && n.type === 'document' ? (
+                  <circle className="nb-hub-ring" cx={n.x!} cy={n.y!} r={hubR + 4} fill="none" />
+                ) : null}
+                {(lit || selected) && (
+                  <text className="nb-label" x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle">
+                    {shortLabel(n.label, n.type === 'document' ? 22 : n.type === 'module' ? 16 : 12)}
+                  </text>
+                )}
               </g>
             )
           })}
@@ -391,20 +421,26 @@ export default function NeuralSearchViz({
               </g>
             ))}
             {absorbed.map((doc) => {
-              const { lx, ly, anchor } = radialLabelOffset(doc.x, doc.y, 16)
+              const { lx, ly, anchor } = radialLabelOffset(doc.x, doc.y, 15)
               return (
                 <g
                   key={`abs-node-${doc.id}`}
-                  className={`nb-node type-document state-${doc.state} lit absorbed`}
+                  className={`nb-node type-document state-${doc.state} lit warm absorbed`}
                   onClick={() => onSelectNode(doc.id === graph.selectedId ? null : doc.id)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <circle className="nb-hub" cx={doc.x} cy={doc.y} r={7} />
-                  <text className="nb-check" x={doc.x + 11} y={doc.y + 4}>
-                    ✓
-                  </text>
+                  <circle
+                    className="nb-halo"
+                    cx={doc.x}
+                    cy={doc.y}
+                    r={22}
+                    fill="url(#nbNodeGlow)"
+                    filter="url(#nbBloom)"
+                  />
+                  <circle className="nb-hub" cx={doc.x} cy={doc.y} r={6} />
+                  <circle className="nb-hub-ring" cx={doc.x} cy={doc.y} r={10} fill="none" />
                   <text className="nb-label" x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle">
-                    {shortLabel(doc.label, 16)}
+                    {shortLabel(doc.label, 18)}
                   </text>
                 </g>
               )
@@ -412,78 +448,39 @@ export default function NeuralSearchViz({
           </g>
         ) : null}
 
-        {/* CharlesGPT seal — monogram hub, not a plain circle */}
+        {/* Soft core — quiet constellation hub */}
         <g className={`nb-core state-${coreState}${expanded ? ' expanded' : ''}`}>
-          <circle className="nb-core-wash" cx={CX} cy={CY} r={100} fill="url(#nbSealGlow)" />
+          <circle className="nb-core-wash" cx={CX} cy={CY} r={118} fill="url(#nbSealGlow)" />
+          <circle className="nb-core-aura" cx={CX} cy={CY} r={expanded ? 86 : 72} fill="none" />
 
           {searching ? (
             <>
-              <polygon className="nb-seal-pulse" points={hexPulse} fill="none" />
-              <polygon className="nb-seal-pulse delay" points={hexPulse} fill="none" />
+              <circle className="nb-seal-pulse-ring" cx={CX} cy={CY} r={70} fill="none" />
+              <circle className="nb-seal-pulse-ring delay" cx={CX} cy={CY} r={88} fill="none" />
             </>
           ) : null}
 
           <g className="nb-seal-spin">
-            <polygon className="nb-seal-hex outer" points={hexOuter} fill="none" />
-          </g>
-          <g className="nb-seal-spin reverse">
-            <polygon className="nb-seal-hex mid" points={hexMid} fill="none" />
+            <circle className="nb-seal-orbit" cx={CX} cy={CY} r={expanded ? 78 : 66} fill="none" />
           </g>
 
-          {/* Technical corner brackets */}
-          <g className="nb-seal-brackets" transform={`translate(${CX} ${CY})`}>
-            <path d="M -52 -28 V -52 H -28" />
-            <path d="M 52 -28 V -52 H 28" />
-            <path d="M -52 28 V 52 H -28" />
-            <path d="M 52 28 V 52 H 28" />
-          </g>
-
-          {/* Diamond face */}
           <g transform={`translate(${CX} ${CY})`}>
-            <rect
-              className="nb-seal-plate"
-              x={-44}
-              y={-44}
-              width={88}
-              height={88}
-              rx={16}
-              transform="rotate(45)"
-              fill="url(#nbSealFace)"
-            />
-            <rect
-              className="nb-seal-plate-edge"
-              x={-44}
-              y={-44}
-              width={88}
-              height={88}
-              rx={16}
-              transform="rotate(45)"
-              fill="none"
-            />
-            <text className="nb-seal-mark" textAnchor="middle" dominantBaseline="central" y={2}>
+            <circle className="nb-seal-disk" r={expanded ? 36 : 32} fill="url(#nbSealFace)" />
+            <circle className="nb-seal-disk-edge" r={expanded ? 36 : 32} fill="none" />
+            <text className="nb-seal-mark" textAnchor="middle" dominantBaseline="central" y={1}>
               C
             </text>
-            <text className="nb-seal-word" textAnchor="middle" y={78}>
+            <text className="nb-seal-word" textAnchor="middle" y={58}>
               CHARLESGPT
             </text>
-            <text className="nb-seal-sub" textAnchor="middle" y={92}>
+            <text className="nb-seal-sub" textAnchor="middle" y={72}>
               {expanded ? 'LOCKED' : searching ? 'SCAN' : 'READY'}
             </text>
           </g>
 
-          {/* Vertex gems */}
           <g className="nb-seal-gems" filter="url(#nbSoft)">
             {sealGems.map((p, i) => (
-              <rect
-                key={`gem-${i}`}
-                className="nb-seal-gem"
-                x={p.x - 3.5}
-                y={p.y - 3.5}
-                width={7}
-                height={7}
-                rx={1.5}
-                transform={`rotate(45 ${p.x} ${p.y})`}
-              />
+              <circle key={`gem-${i}`} className="nb-seal-gem" cx={p.x} cy={p.y} r={2.4} />
             ))}
           </g>
         </g>

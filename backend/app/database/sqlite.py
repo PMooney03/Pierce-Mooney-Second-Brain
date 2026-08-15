@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     content TEXT NOT NULL,
     mode TEXT,
     sources_json TEXT,
+    retrieval TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
@@ -152,9 +153,11 @@ class SQLiteDatabase:
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=30.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 30000")
         return conn
 
     @contextmanager
@@ -235,6 +238,12 @@ class SQLiteDatabase:
                 )
                 """
             )
+            msg_cols = {
+                r["name"]
+                for r in conn.execute("PRAGMA table_info(chat_messages)").fetchall()
+            }
+            if "retrieval" not in msg_cols:
+                conn.execute("ALTER TABLE chat_messages ADD COLUMN retrieval TEXT")
         logger.info("SQLite schema ready at %s", self.db_path)
 
     # --- documents ---
@@ -757,7 +766,7 @@ class SQLiteDatabase:
         with self.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, session_id, role, content, mode, sources_json, created_at
+                SELECT id, session_id, role, content, mode, sources_json, retrieval, created_at
                 FROM chat_messages
                 WHERE session_id = ?
                 ORDER BY id ASC
@@ -787,6 +796,7 @@ class SQLiteDatabase:
         content: str,
         mode: str | None = None,
         sources: list[dict[str, Any]] | None = None,
+        retrieval: str | None = None,
     ) -> int:
         now = utc_now_iso()
         self.create_chat_session(session_id)
@@ -797,8 +807,9 @@ class SQLiteDatabase:
         with self.connection() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO chat_messages (session_id, role, content, mode, sources_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO chat_messages
+                    (session_id, role, content, mode, sources_json, retrieval, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -806,6 +817,7 @@ class SQLiteDatabase:
                     content,
                     mode,
                     json.dumps(sources or [], ensure_ascii=False) if sources is not None else None,
+                    retrieval,
                     now,
                 ),
             )

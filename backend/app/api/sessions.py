@@ -26,6 +26,7 @@ class MessageOut(BaseModel):
     content: str
     mode: str | None = None
     sources: list[dict] = Field(default_factory=list)
+    retrieval: str | None = None
     created_at: str
 
 

@@ -82,7 +82,10 @@ def extract_path_metadata(relative_path: str) -> dict[str, str | None]:
         # Fall through for document_type refinement from filename only
 
     for i, part in enumerate(folder_parts):
-        if module is not None and folder_parts[0].lower() in {"projects", "project"}:
+        if module is not None and folder_parts[0].lower() in {
+            "projects",
+            "project",
+        }:
             break
         if year and (
             re.match(r"^Year\s*\d+$", part, re.I)
@@ -166,6 +169,8 @@ def extract_path_metadata(relative_path: str) -> dict[str, str | None]:
             ".sh",
         }:
             document_type = "Source Code"
+        elif suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}:
+            document_type = "Image"
         elif suffix in {".md", ".txt"}:
             document_type = "Notes"
         else:

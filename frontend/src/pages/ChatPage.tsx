@@ -13,6 +13,39 @@ interface Message {
   mode?: string
   saved?: boolean
   learned?: LearnedMemory[]
+  retrieval?: string
+}
+
+function retrievalTag(retrieval?: string, sources?: Source[]): {
+  label: string
+  kind: 'archive' | 'web' | 'archive+web' | 'tools'
+} | null {
+  const kind =
+    retrieval ||
+    (() => {
+      if (!sources?.length) return null
+      const ddg = sources.some(
+        (s) =>
+          (s.heading || '').startsWith('DuckDuckGo') ||
+          s.module === 'DuckDuckGo' ||
+          (s.chunk_id || '').startsWith('web:ddg'),
+      )
+      const archive = sources.some(
+        (s) =>
+          (s.document_id || 0) > 0 &&
+          !(s.chunk_id || '').startsWith('web:') &&
+          !(s.chunk_id || '').startsWith('tool:'),
+      )
+      if (archive && ddg) return 'archive+web'
+      if (ddg) return 'web'
+      if (archive) return 'archive'
+      return null
+    })()
+  if (kind === 'web') return { label: 'Web search', kind: 'web' }
+  if (kind === 'archive') return { label: 'RAG', kind: 'archive' }
+  if (kind === 'archive+web') return { label: 'RAG + Web', kind: 'archive+web' }
+  if (kind === 'tools') return { label: 'Direct', kind: 'tools' }
+  return null
 }
 
 const MODES: { id: ChatMode; label: string; hint: string; placeholder: string }[] = [
@@ -59,6 +92,11 @@ const MODES: { id: ChatMode; label: string; hint: string; placeholder: string }[
     placeholder: 'Break down my project…',
   },
 ]
+
+function modeLabel(mode?: string): string | null {
+  if (!mode) return null
+  return MODES.find((m) => m.id === mode)?.label ?? mode
+}
 
 const SUGGESTIONS: { mode: ChatMode; text: string }[] = [
   { mode: 'ask', text: 'What tech shows up in my college work?' },
@@ -161,12 +199,13 @@ export default function ChatPage() {
                 sources: r.sources,
                 mode: r.mode || undefined,
                 saved: true,
+                retrieval: r.retrieval || undefined,
               })),
             )
             setReady(true)
             return
           } catch {
-            // Stale session or backend restarting — fall through to create
+            // Stale session, timeout, or backend restarting — fall through to create
             localStorage.removeItem(SESSION_KEY)
           }
         }
@@ -175,14 +214,20 @@ export default function ChatPage() {
         localStorage.setItem(SESSION_KEY, created.session.id)
         setSessionId(created.session.id)
       } catch {
-        if (attempt < 4 && !cancelled) {
-          window.setTimeout(() => void boot(attempt + 1), 600 * (attempt + 1))
+        if (attempt < 2 && !cancelled) {
+          window.setTimeout(() => void boot(attempt + 1), 700 * (attempt + 1))
           return
         }
-        if (!cancelled) setSessionId(crypto.randomUUID())
-      } finally {
-        if (!cancelled) setReady(true)
+        if (!cancelled) {
+          setSessionId(crypto.randomUUID())
+          setError(
+            'Could not reach the API to load chat. If you just started ingest, wait or restart the backend, then refresh.',
+          )
+          setReady(true)
+        }
+        return
       }
+      if (!cancelled) setReady(true)
     }
     void boot()
     return () => {
@@ -261,6 +306,7 @@ export default function ChatPage() {
           mode: res.mode,
           saved: learnedPayload?.session_saved ?? Boolean(sid),
           learned: learnedPayload?.memories || [],
+          retrieval: res.retrieval,
         },
       ])
       setLiveSources(res.sources || [])
@@ -381,12 +427,35 @@ export default function ChatPage() {
           )}
 
           <div className="message-list">
-            {messages.map((msg) => (
+            {messages.map((msg) => {
+              const sourceTag = msg.role === 'assistant' ? retrievalTag(msg.retrieval, msg.sources) : null
+              const askTag = msg.role === 'assistant' ? modeLabel(msg.mode) : null
+              return (
               <div key={msg.id} className={`message ${msg.role}`}>
                 <div className="message-role">
                   {msg.role === 'user' ? 'You' : 'CharlesGPT'}
-                  {msg.mode && msg.role === 'assistant' ? (
-                    <span className="tag">{msg.mode}</span>
+                  {askTag ? <span className="tag">{askTag}</span> : null}
+                  {sourceTag ? (
+                    <span
+                      className={`tag${
+                        sourceTag.kind === 'web' || sourceTag.kind === 'archive+web'
+                          ? ' tag-web'
+                          : sourceTag.kind === 'archive'
+                            ? ' tag-archive'
+                            : ' tag-direct'
+                      }`}
+                      title={
+                        sourceTag.kind === 'web'
+                          ? 'Answer used DuckDuckGo web search'
+                          : sourceTag.kind === 'archive'
+                            ? 'Answer used RAG over your college files'
+                            : sourceTag.kind === 'archive+web'
+                              ? 'Answer used RAG plus DuckDuckGo'
+                              : 'Answered without file or web retrieval'
+                      }
+                    >
+                      {sourceTag.label}
+                    </span>
                   ) : null}
                   {msg.role === 'assistant' && msg.saved ? (
                     <span className="tag tag-saved">Saved</span>
@@ -415,7 +484,8 @@ export default function ChatPage() {
                   <SourceCards sources={msg.sources} defaultOpen={false} />
                 ) : null}
               </div>
-            ))}
+              )
+            })}
 
             {busy && !brain.searching && !brain.hasNetwork ? (
               <div className="message assistant composing">

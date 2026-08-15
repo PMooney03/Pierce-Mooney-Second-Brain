@@ -44,13 +44,33 @@ export default function LibraryPage() {
 
   async function runIngest() {
     setIngesting(true)
-    setIngestMsg(null)
+    setIngestMsg('Starting ingest…')
     try {
-      const res = await api.ingest()
-      setIngestMsg(
-        `Found ${res.files_found}. New ${res.processed}, updated ${res.updated}, skipped ${res.skipped}, chunks ${res.chunks_created}, errors ${res.errors}.`,
-      )
-      await load()
+      await api.ingest()
+      // Background job — poll until finished
+      for (;;) {
+        await new Promise((r) => window.setTimeout(r, 1500))
+        const job = await api.ingestStatus()
+        if (job.status === 'running') {
+          setIngestMsg('Ingest running in the background (OCR/embed can take a while)…')
+          continue
+        }
+        if (job.status === 'error') {
+          setIngestMsg(job.error || 'Ingest failed')
+          break
+        }
+        if (job.status === 'done' && job.result) {
+          const res = job.result
+          setIngestMsg(
+            `Found ${res.files_found}. New ${res.processed}, updated ${res.updated}, skipped ${res.skipped}, chunks ${res.chunks_created}, errors ${res.errors}.`,
+          )
+          await load()
+          break
+        }
+        setIngestMsg('Ingest finished.')
+        await load()
+        break
+      }
     } catch (err) {
       setIngestMsg(err instanceof Error ? err.message : String(err))
     } finally {

@@ -34,6 +34,7 @@ export interface ChatResponse {
   sources: Source[]
   mode: string
   model: string
+  retrieval?: string
 }
 
 export type TraceEvent = {
@@ -76,6 +77,7 @@ const TRACE_KINDS = new Set([
   'status',
   'file',
   'learned',
+  'retrieval',
 ])
 
 export async function chatStream(
@@ -136,6 +138,7 @@ export async function chatStream(
           sources: (event.sources as Source[]) || [],
           mode: String(event.mode || mode),
           model: String(event.model || ''),
+          retrieval: event.retrieval ? String(event.retrieval) : undefined,
         }
       } else if (kind === 'learned') {
         handlers.onLearned?.(event as unknown as LearnedEvent)
@@ -236,25 +239,60 @@ export interface HealthResponse {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
-  })
-  if (!res.ok) {
-    let detail = res.statusText
-    try {
-      const body = await res.json()
-      detail = body.detail || JSON.stringify(body)
-    } catch {
-      /* ignore */
+export interface IngestJobStatus {
+  status: 'idle' | 'running' | 'done' | 'error' | string
+  started_at: string | null
+  finished_at: string | null
+  error: string | null
+  result: {
+    files_found: number
+    processed: number
+    skipped: number
+    updated: number
+    deleted: number
+    errors: number
+    chunks_created: number
+    details?: string[]
+  } | null
+}
+
+async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs, ...rest } = init || {}
+  const controller = new AbortController()
+  const timer =
+    timeoutMs && timeoutMs > 0
+      ? window.setTimeout(() => controller.abort(), timeoutMs)
+      : null
+  try {
+    const isForm = typeof FormData !== 'undefined' && rest.body instanceof FormData
+    const headers: Record<string, string> = { ...(rest.headers as Record<string, string> | undefined) }
+    if (!isForm && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json'
     }
-    throw new Error(detail)
+    const res = await fetch(path, {
+      ...rest,
+      signal: controller.signal,
+      headers,
+    })
+    if (!res.ok) {
+      let detail = res.statusText
+      try {
+        const body = await res.json()
+        detail = body.detail || JSON.stringify(body)
+      } catch {
+        /* ignore */
+      }
+      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail))
+    }
+    return res.json() as Promise<T>
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Request timed out — is the API busy or offline?')
+    }
+    throw err
+  } finally {
+    if (timer != null) window.clearTimeout(timer)
   }
-  return res.json() as Promise<T>
 }
 
 export const api = {
@@ -268,11 +306,12 @@ export const api = {
   createSession: () =>
     request<{ session: { id: string; title: string | null; created_at: string; updated_at: string } }>(
       '/api/chat/sessions',
-      { method: 'POST', body: '{}' },
+      { method: 'POST', body: '{}', timeoutMs: 8000 },
     ),
   listSessions: () =>
     request<Array<{ id: string; title: string | null; created_at: string; updated_at: string }>>(
       '/api/chat/sessions',
+      { timeoutMs: 8000 },
     ),
   sessionMessages: (sessionId: string) =>
     request<
@@ -283,9 +322,10 @@ export const api = {
         content: string
         mode: string | null
         sources: Source[]
+        retrieval?: string | null
         created_at: string
       }>
-    >(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`),
+    >(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { timeoutMs: 8000 }),
   deleteSession: (sessionId: string) =>
     request<{ ok: boolean }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
       method: 'DELETE',
@@ -318,12 +358,10 @@ export const api = {
   knowledge: () => request<Record<string, unknown>>('/api/knowledge'),
   ingest: () =>
     request<{
-      files_found: number
-      processed: number
-      skipped: number
-      updated: number
-      deleted: number
-      errors: number
-      chunks_created: number
-    }>('/api/ingest', { method: 'POST' }),
+      status: string
+      started_at: string | null
+      message: string
+      job: IngestJobStatus
+    }>('/api/ingest', { method: 'POST', timeoutMs: 15000 }),
+  ingestStatus: () => request<IngestJobStatus>('/api/ingest/status', { timeoutMs: 8000 }),
 }

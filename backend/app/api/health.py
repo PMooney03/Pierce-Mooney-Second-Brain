@@ -19,7 +19,8 @@ def health() -> dict:
     db_ok = False
     db_error = None
     try:
-        get_db().list_documents(status="active")
+        with get_db().connection() as conn:
+            conn.execute("SELECT 1").fetchone()
         db_ok = True
     except Exception as exc:  # noqa: BLE001
         db_error = str(exc)

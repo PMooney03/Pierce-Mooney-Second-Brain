@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     web_lookup_timeout: float = Field(default=8.0, ge=2.0, le=30.0)
     default_weather_location: str = "Dublin"
 
+    # Local OCR (RapidOCR + onnxruntime) for images and scanned PDF pages
+    ocr_enabled: bool = True
+    ocr_pdf_fallback: bool = True
+    ocr_pdf_zoom: float = Field(default=2.0, ge=1.0, le=4.0)
+    ocr_min_image_side: int = Field(default=64, ge=16, le=512)
+    ocr_max_file_mb: float = Field(default=25.0, ge=1.0, le=100.0)
+
     host: str = "127.0.0.1"
     port: int = 8000
 
