@@ -10,7 +10,7 @@ Coursework stays on my machine. Real lecture/lab PDFs are gitignored; `Projects/
 
 ## Demo
 
-[SecondBrainDemo.mp4](Images/SecondBrainDemo.mp4) (~40MB)
+[SecondBrainDemo.mp4](Images/SecondBrainDemo.mp4) (~204MB, Git LFS)
 
 Ask about coursework → watch the retrieval map → read a cited, streaming answer → open a source.
 
