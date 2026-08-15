@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from app.database.models import ChatMode, ChatResult, ChunkRecord, SourceCitation
 from app.llm.ollama_client import OllamaClient
 from app.llm.prompts import ChatTurn, build_converse_messages, build_messages
@@ -63,23 +65,13 @@ class AnswerGenerator:
         web_sources: list[SourceCitation] | None = None,
     ) -> ChatResult:
         """Chat without college RAG — optional web lookup context."""
-        messages = build_converse_messages(
-            message=message,
-            history=history,
-            system=_CONVERSE_SYSTEM,
-            web_note=web_note,
+        text = "".join(
+            self.iter_converse(
+                message,
+                history=history,
+                web_note=web_note,
+            )
         )
-        logger.info(
-            "Conversational reply (history=%s, web=%s)",
-            len(history or []),
-            bool(web_note),
-        )
-        try:
-            answer = self.ollama.chat(messages, temperature=0.5)
-            text = (answer or "").strip()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Converse failed: %s", exc)
-            text = ""
         if not text or len(text) < 8:
             text = (
                 "Hey — I'm here. We can keep chatting, dig into your college materials, "
@@ -92,6 +84,28 @@ class AnswerGenerator:
             model=self.ollama.chat_model,
         )
 
+    def iter_converse(
+        self,
+        message: str,
+        history: list[ChatTurn] | None = None,
+        web_note: str | None = None,
+    ) -> Iterator[str]:
+        messages = build_converse_messages(
+            message=message,
+            history=history,
+            system=_CONVERSE_SYSTEM,
+            web_note=web_note,
+        )
+        logger.info(
+            "Conversational reply stream (history=%s, web=%s)",
+            len(history or []),
+            bool(web_note),
+        )
+        try:
+            yield from self.ollama.iter_chat(messages, temperature=0.5)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Converse stream failed: %s", exc)
+
     def generate(
         self,
         question: str,
@@ -102,6 +116,17 @@ class AnswerGenerator:
         web_note: str | None = None,
         web_sources: list[SourceCitation] | None = None,
     ) -> ChatResult:
+        parts: list[str] = []
+        for token in self.iter_generate(
+            question,
+            chunks,
+            mode=mode,
+            inventory_note=inventory_note,
+            history=history,
+            web_note=web_note,
+        ):
+            parts.append(token)
+        answer = "".join(parts).strip()
         if mode == ChatMode.SEARCH:
             return ChatResult(
                 answer="",
@@ -109,17 +134,38 @@ class AnswerGenerator:
                 mode=mode.value,
                 model=self.ollama.chat_model,
             )
-
-        if not chunks and not inventory_note and not web_note:
-            return ChatResult(
-                answer=(
-                    "I could not find enough evidence in your indexed college materials "
-                    "or via web lookup. Try a different query, or keep chatting in Ask mode."
-                ),
-                sources=[],
-                mode=mode.value,
-                model=self.ollama.chat_model,
+        if not chunks and not inventory_note and not web_note and not answer:
+            answer = (
+                "I could not find enough evidence in your indexed college materials "
+                "or via web lookup. Try a different query, or keep chatting in Ask mode."
             )
+        sources = chunks_to_citations(chunks)
+        if web_sources:
+            sources = sources + list(web_sources)
+        return ChatResult(
+            answer=answer,
+            sources=sources,
+            mode=mode.value,
+            model=self.ollama.chat_model,
+        )
+
+    def iter_generate(
+        self,
+        question: str,
+        chunks: list[ChunkRecord],
+        mode: ChatMode = ChatMode.ASK,
+        inventory_note: str | None = None,
+        history: list[ChatTurn] | None = None,
+        web_note: str | None = None,
+    ) -> Iterator[str]:
+        if mode == ChatMode.SEARCH:
+            return
+        if not chunks and not inventory_note and not web_note:
+            yield (
+                "I could not find enough evidence in your indexed college materials "
+                "or via web lookup. Try a different query, or keep chatting in Ask mode."
+            )
+            return
 
         messages = build_messages(
             question=question,
@@ -130,20 +176,15 @@ class AnswerGenerator:
             web_note=web_note,
         )
         logger.info(
-            "Generating answer (mode=%s, sources=%s, history=%s, web=%s)",
+            "Generating answer stream (mode=%s, sources=%s, history=%s, web=%s)",
             mode.value,
             len(chunks),
             len(history or []),
             bool(web_note),
         )
-        temperature = 0.15 if history else (0.0 if mode in {ChatMode.ASK, ChatMode.RECALL, ChatMode.INTERVIEW} else 0.15)
-        answer = self.ollama.chat(messages, temperature=temperature)
-        sources = chunks_to_citations(chunks)
-        if web_sources:
-            sources = sources + list(web_sources)
-        return ChatResult(
-            answer=answer.strip(),
-            sources=sources,
-            mode=mode.value,
-            model=self.ollama.chat_model,
+        temperature = (
+            0.15
+            if history
+            else (0.0 if mode in {ChatMode.ASK, ChatMode.RECALL, ChatMode.INTERVIEW} else 0.15)
         )
+        yield from self.ollama.iter_chat(messages, temperature=temperature)

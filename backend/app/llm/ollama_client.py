@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -24,8 +26,12 @@ class OllamaClient:
         self.embed_model = embed_model
         self.timeout = timeout
 
-    def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self.base_url, timeout=self.timeout)
+    def _client(self, *, read_timeout: float | None = None) -> httpx.Client:
+        read = read_timeout if read_timeout is not None else self.timeout
+        return httpx.Client(
+            base_url=self.base_url,
+            timeout=httpx.Timeout(connect=10.0, read=read, write=30.0, pool=10.0),
+        )
 
     def is_reachable(self) -> bool:
         try:
@@ -147,6 +153,8 @@ class OllamaClient:
         temperature: float = 0.2,
         stream: bool = False,
     ) -> str:
+        if stream:
+            return "".join(self.iter_chat(messages, temperature=temperature))
         try:
             with self._client() as client:
                 r = client.post(
@@ -154,7 +162,7 @@ class OllamaClient:
                     json={
                         "model": self.chat_model,
                         "messages": messages,
-                        "stream": stream,
+                        "stream": False,
                         "options": {"temperature": temperature},
                     },
                 )
@@ -168,5 +176,44 @@ class OllamaClient:
         except httpx.HTTPError as exc:
             raise OllamaError(
                 f"Chat failed with model '{self.chat_model}': {exc}. "
+                f"Ensure it is pulled: ollama pull {self.chat_model}"
+            ) from exc
+
+    def iter_chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.2,
+    ) -> Iterator[str]:
+        """Yield incremental assistant text chunks from Ollama (`stream: true`)."""
+        try:
+            with self._client(read_timeout=max(300.0, self.timeout)) as client:
+                with client.stream(
+                    "POST",
+                    "/api/chat",
+                    json={
+                        "model": self.chat_model,
+                        "messages": messages,
+                        "stream": True,
+                        "options": {"temperature": temperature},
+                    },
+                ) as r:
+                    r.raise_for_status()
+                    for line in r.iter_lines():
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        message = data.get("message") or {}
+                        content = message.get("content")
+                        if content:
+                            yield str(content)
+                        if data.get("done"):
+                            break
+        except httpx.HTTPError as exc:
+            raise OllamaError(
+                f"Chat stream failed with model '{self.chat_model}': {exc}. "
                 f"Ensure it is pulled: ollama pull {self.chat_model}"
             ) from exc

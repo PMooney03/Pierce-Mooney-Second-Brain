@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from app.config import Settings
 from app.database.models import DocumentStatus
@@ -23,6 +23,8 @@ from app.logging_config import get_logger
 from app.retrieval.embeddings import EmbeddingService
 
 logger = get_logger(__name__)
+
+ProgressCallback = Callable[..., None]
 
 
 @dataclass
@@ -69,20 +71,52 @@ class IngestionService:
         if settings.ocr_enabled:
             self.registry.register(ImageParser())
 
-    def run(self, *, remove_missing: bool = True) -> IngestionStats:
+    def run(
+        self,
+        *,
+        remove_missing: bool = True,
+        on_progress: ProgressCallback | None = None,
+    ) -> IngestionStats:
+        def report(**kwargs: Any) -> None:
+            if on_progress:
+                try:
+                    on_progress(**kwargs)
+                except Exception:  # noqa: BLE001
+                    logger.debug("Ingest progress callback failed", exc_info=True)
+
         root = self.settings.resolve_documents_path()
         stats = IngestionStats()
         run_id = self.db.start_ingestion_run()
 
+        report(phase="scanning", message=f"Scanning {root}…", current_file=None)
         print(f"\nScanning: {root}\n")
         files = scan_documents(root, extensions=self.registry.supported())
         stats.files_found = len(files)
         print(f"Found {stats.files_found} files.\n")
+        report(
+            phase="indexing",
+            message=f"Found {stats.files_found} files",
+            total_files=stats.files_found,
+            current_index=0,
+            current_file=None,
+        )
 
         seen_paths: set[str] = set()
 
-        for scanned in files:
+        for i, scanned in enumerate(files, start=1):
             seen_paths.add(scanned.relative_path)
+            report(
+                phase="indexing",
+                message=f"Processing {i}/{stats.files_found}",
+                current_file=scanned.relative_path,
+                current_index=i,
+                total_files=stats.files_found,
+                processed=stats.processed,
+                skipped=stats.skipped,
+                updated=stats.updated,
+                errors=stats.errors,
+                chunks_created=stats.chunks_created,
+            )
             try:
                 action = self._process_file(scanned, stats)
                 label = {
@@ -93,6 +127,14 @@ class IngestionService:
                 line = f"[{label}] {scanned.relative_path}"
                 print(line)
                 stats.details.append(line)
+                report(
+                    recent_line=line,
+                    processed=stats.processed,
+                    skipped=stats.skipped,
+                    updated=stats.updated,
+                    errors=stats.errors,
+                    chunks_created=stats.chunks_created,
+                )
             except Exception as exc:  # noqa: BLE001
                 stats.errors += 1
                 msg = f"[ERROR] {scanned.relative_path}: {exc}"
@@ -100,11 +142,34 @@ class IngestionService:
                 logger.error("Ingestion failed for %s: %s", scanned.relative_path, exc)
                 stats.details.append(msg)
                 self.db.mark_document_error(None, scanned.relative_path, str(exc))
+                report(
+                    recent_line=msg,
+                    errors=stats.errors,
+                    processed=stats.processed,
+                    skipped=stats.skipped,
+                    updated=stats.updated,
+                    chunks_created=stats.chunks_created,
+                )
 
         if remove_missing:
+            report(phase="cleanup", message="Checking for removed files…", current_file=None)
             self._handle_deleted(seen_paths, stats)
+            report(deleted=stats.deleted)
 
         self.db.finish_ingestion_run(run_id, stats.as_dict())
+        report(
+            phase="done",
+            message="Ingest complete",
+            current_file=None,
+            current_index=stats.files_found,
+            total_files=stats.files_found,
+            processed=stats.processed,
+            skipped=stats.skipped,
+            updated=stats.updated,
+            errors=stats.errors,
+            chunks_created=stats.chunks_created,
+            deleted=stats.deleted,
+        )
 
         print(
             f"\nProcessed (new): {stats.processed}\n"

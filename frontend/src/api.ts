@@ -60,6 +60,7 @@ export type ChatStreamHandlers = {
   onStatus?: (message: string, node?: string) => void
   onFile?: (source: Source, node?: string) => void
   onTrace?: (event: TraceEvent) => void
+  onToken?: (text: string, replace?: boolean) => void
   onLearned?: (event: LearnedEvent) => void
   onDone?: () => void
   onError?: (message: string) => void
@@ -130,6 +131,8 @@ export async function chatStream(
       }
       if (kind === 'status') {
         handlers.onStatus?.(String(event.message || ''), event.node as string | undefined)
+      } else if (kind === 'token') {
+        handlers.onToken?.(String(event.text || ''), Boolean(event.replace))
       } else if (kind === 'file' && event.source) {
         handlers.onFile?.(event.source as Source, event.node as string | undefined)
       } else if (kind === 'answer') {
@@ -239,11 +242,27 @@ export interface HealthResponse {
   }
 }
 
+export interface IngestProgress {
+  phase: string
+  message: string
+  current_file: string | null
+  current_index: number
+  total_files: number
+  processed: number
+  skipped: number
+  updated: number
+  errors: number
+  chunks_created: number
+  deleted: number
+  recent: string[]
+}
+
 export interface IngestJobStatus {
   status: 'idle' | 'running' | 'done' | 'error' | string
   started_at: string | null
   finished_at: string | null
   error: string | null
+  progress?: IngestProgress | null
   result: {
     files_found: number
     processed: number

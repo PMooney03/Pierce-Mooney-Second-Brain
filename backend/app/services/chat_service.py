@@ -709,28 +709,39 @@ class ChatService:
                 yield {"event": "done"}
                 return
             yield {"event": "status", "message": "Composing answer…", "node": "reason"}
-            result = self.generator.converse(
+            parts: list[str] = []
+            for token in self.generator.iter_converse(
                 message,
                 history=prior,
                 web_note=tools.note or None,
-                web_sources=tools.sources,
-            )
-            sources = [_citation_payload(s) for s in result.sources]
+            ):
+                if not token:
+                    continue
+                parts.append(token)
+                yield {"event": "token", "text": token}
+            answer_text = "".join(parts).strip()
+            if not answer_text or len(answer_text) < 8:
+                answer_text = (
+                    "Hey — I'm here. We can keep chatting, dig into your college materials, "
+                    "or look up a quick fact when you need context."
+                )
+                yield {"event": "token", "text": answer_text}
+            sources = [_citation_payload(s) for s in tools.sources]
             retrieval = _retrieval_kind(used_archive=False, sources=sources)
             learned = self._persist_turn(
                 session_id,
                 message=message,
-                answer=result.answer,
+                answer=answer_text,
                 mode=mode,
                 sources=sources,
                 retrieval=retrieval,
             )
             yield {
                 "event": "answer",
-                "answer": result.answer,
+                "answer": answer_text,
                 "sources": sources,
-                "mode": result.mode,
-                "model": result.model,
+                "mode": mode.value,
+                "model": self.generator.ollama.chat_model,
                 "retrieval": retrieval,
             }
             yield learned
@@ -945,43 +956,51 @@ class ChatService:
         yield trace.emit_phase("compose", "Composing answer…")
         yield {"event": "status", "message": "Composing answer…", "node": "reason"}
         yield trace.emit_sources_selected([c.chunk_id for c in cites])
-        result = self.generator.generate(
+        parts: list[str] = []
+        for token in self.generator.iter_generate(
             message,
             chunks,
             mode=mode,
             history=prior,
             inventory_note=inventory_note,
             web_note=tools.note or None,
-            web_sources=tools.sources,
-        )
-        if _BROKEN_LLM_RE.search(result.answer or ""):
+        ):
+            if not token:
+                continue
+            parts.append(token)
+            yield {"event": "token", "text": token}
+        answer_text = "".join(parts).strip()
+        if _BROKEN_LLM_RE.search(answer_text or ""):
             bullets = []
             for i, c in enumerate(chunks[:8], start=1):
                 loc = f"p.{c.page_start}" if c.page_start else (c.heading or "section unknown")
                 bullets.append(
                     f"- [{i}] **{c.filename}** ({c.year or '?'}, {c.module or loc})"
                 )
-            result.answer = (
+            answer_text = (
                 "I retrieved related material, but the local model produced an unusable reply. "
                 "Here are the strongest evidence hits — try **Recall** mode or a more specific question:\n\n"
                 + "\n".join(bullets)
             )
-        sources = [_citation_payload(s) for s in result.sources]
+            yield {"event": "token", "text": answer_text, "replace": True}
+        sources = [_citation_payload(s) for s in chunks_to_citations(chunks)]
+        if tools.sources:
+            sources = sources + [_citation_payload(s) for s in tools.sources]
         retrieval = _retrieval_kind(used_archive=True, sources=sources)
         learned = self._persist_turn(
             session_id,
             message=message,
-            answer=result.answer,
+            answer=answer_text,
             mode=mode,
             sources=sources,
             retrieval=retrieval,
         )
         yield {
             "event": "answer",
-            "answer": result.answer,
+            "answer": answer_text,
             "sources": sources,
-            "mode": result.mode,
-            "model": result.model,
+            "mode": mode.value,
+            "model": self.generator.ollama.chat_model,
             "retrieval": retrieval,
         }
         yield learned

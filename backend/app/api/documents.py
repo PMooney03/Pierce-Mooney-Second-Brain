@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.deps import get_db, get_ollama, get_qdrant
 from app.retrieval.embeddings import EmbeddingService
-from app.services.ingest_jobs import get_ingest_status, start_ingest_job
+from app.services.ingest_jobs import get_ingest_status, start_ingest_job, update_ingest_progress
 from app.services.ingestion_service import IngestionService
 
 router = APIRouter(tags=["documents"])
@@ -64,7 +64,7 @@ def _run_ingest() -> dict[str, Any]:
     qdrant = get_qdrant()
     embeddings = EmbeddingService(get_ollama())
     service = IngestionService(settings, db, qdrant, embeddings)
-    return service.run().as_dict()
+    return service.run(on_progress=update_ingest_progress).as_dict()
 
 
 @router.get("/api/ingest")

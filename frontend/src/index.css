@@ -1397,6 +1397,23 @@ html[data-theme='dark'] .chat-surface.has-network .message .message-body code {
   max-width: 100%;
 }
 
+.message-body.streaming::after {
+  content: '';
+  display: inline-block;
+  width: 0.45em;
+  height: 1em;
+  margin-left: 0.12em;
+  background: var(--accent);
+  animation: stream-caret 0.9s steps(1) infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes stream-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
 .thinking {
   display: inline-flex;
   gap: 0.35rem;
@@ -3735,6 +3752,112 @@ html[data-theme='dark'] .sources-toggle {
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.ingest-panel {
+  margin: 0 0 1.1rem;
+  padding: 1rem 1.05rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-solid);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.ingest-panel.active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ingest-panel-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ingest-panel-top strong {
+  display: block;
+  font-size: 0.92rem;
+  margin-bottom: 0.2rem;
+}
+
+.ingest-panel-top p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.ingest-pct {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ingest-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 80%, transparent);
+  overflow: hidden;
+}
+
+.ingest-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #fff));
+  transition: width 0.35s ease;
+}
+
+.ingest-current {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.ingest-current span {
+  color: var(--muted);
+  margin-right: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.ingest-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ingest-log {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  list-style: none;
+  max-height: 9.5rem;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.ingest-log li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html[data-theme='dark'] .ingest-panel {
+  background: rgba(18, 20, 28, 0.72);
 }
 
 .knowledge-grid {

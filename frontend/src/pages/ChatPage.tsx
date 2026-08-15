@@ -43,8 +43,8 @@ function retrievalTag(retrieval?: string, sources?: Source[]): {
     })()
   if (kind === 'web') return { label: 'Web search', kind: 'web' }
   if (kind === 'archive') return { label: 'RAG', kind: 'archive' }
-  if (kind === 'archive+web') return { label: 'RAG + Web', kind: 'archive+web' }
-  if (kind === 'tools') return { label: 'Direct', kind: 'tools' }
+  if (kind === 'archive+web') return { label: 'RAG + Web search', kind: 'archive+web' }
+  if (kind === 'tools') return { label: 'Model answer', kind: 'tools' }
   return null
 }
 
@@ -177,6 +177,7 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const [learnToast, setLearnToast] = useState<string | null>(null)
+  const [streaming, setStreaming] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const activeMode = MODES.find((m) => m.id === mode) ?? MODES[0]
   const brain = useBrainTrace(true)
@@ -242,8 +243,8 @@ export default function ChatPage() {
   }, [learnToast])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy, liveSources.length])
+    bottomRef.current?.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth' })
+  }, [messages, busy, liveSources.length, streaming])
 
   async function ask(text: string, overrideMode?: ChatMode) {
     const trimmed = text.trim()
@@ -270,6 +271,9 @@ export default function ChatPage() {
     // Always restart the brain viz on send so chat never feels like a blank box.
     brain.beginTurn()
     setBusy(true)
+    const assistantId = crypto.randomUUID()
+    let streamed = false
+    setStreaming(false)
     try {
       let learnedPayload: { memories: LearnedMemory[]; session_saved: boolean; message: string } | null =
         null
@@ -279,6 +283,30 @@ export default function ChatPage() {
         history,
         {
           onTrace: (ev) => brain.enqueue(ev),
+          onToken: (text, replace) => {
+            if (!text) return
+            if (!streamed) {
+              streamed = true
+              setStreaming(true)
+              setMessages((m) => [
+                ...m,
+                {
+                  id: assistantId,
+                  role: 'assistant',
+                  content: text,
+                  mode: useMode,
+                },
+              ])
+              return
+            }
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, content: replace ? text : `${msg.content}${text}` }
+                  : msg,
+              ),
+            )
+          },
           onFile: (source) => {
             setLiveSources((prev) => {
               if (prev.some((s) => s.chunk_id === source.chunk_id)) return prev
@@ -296,24 +324,31 @@ export default function ChatPage() {
         },
         sid,
       )
-      setMessages((m) => [
-        ...m,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
+      setMessages((m) => {
+        const next = {
+          id: assistantId,
+          role: 'assistant' as const,
           content: res.answer || '(See sources below.)',
           sources: res.sources,
           mode: res.mode,
           saved: learnedPayload?.session_saved ?? Boolean(sid),
           learned: learnedPayload?.memories || [],
           retrieval: res.retrieval,
-        },
-      ])
+        }
+        if (streamed) {
+          return m.map((msg) => (msg.id === assistantId ? next : msg))
+        }
+        return [...m, next]
+      })
       setLiveSources(res.sources || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+      if (streamed) {
+        setMessages((m) => m.filter((msg) => msg.id !== assistantId))
+      }
     } finally {
       setBusy(false)
+      setStreaming(false)
       brain.finishIfSearching()
       // Quiet mode: after the answer, fold back to ambient core (keep cool, not sticky map).
       if (!traceEnabled) {
@@ -450,8 +485,8 @@ export default function ChatPage() {
                           : sourceTag.kind === 'archive'
                             ? 'Answer used RAG over your college files'
                             : sourceTag.kind === 'archive+web'
-                              ? 'Answer used RAG plus DuckDuckGo'
-                              : 'Answered without file or web retrieval'
+                              ? 'Answer used RAG plus DuckDuckGo web search'
+                              : 'Answered by the local model without RAG or web search'
                       }
                     >
                       {sourceTag.label}
@@ -465,7 +500,7 @@ export default function ChatPage() {
                   ) : null}
                 </div>
                 {msg.role === 'assistant' ? (
-                  <div className="message-body md">
+                  <div className={`message-body md${streaming && msg.id === messages[messages.length - 1]?.id ? ' streaming' : ''}`}>
                     <Markdown>{msg.content}</Markdown>
                   </div>
                 ) : (
@@ -487,7 +522,7 @@ export default function ChatPage() {
               )
             })}
 
-            {busy && !brain.searching && !brain.hasNetwork ? (
+            {busy && !streaming && !brain.searching && !brain.hasNetwork ? (
               <div className="message assistant composing">
                 <div className="message-role">CharlesGPT</div>
                 <div className="thinking" aria-label="Searching">
