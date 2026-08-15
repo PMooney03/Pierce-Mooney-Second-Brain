@@ -50,7 +50,7 @@ documents/**
 
 # Local demo media — keep bulky recordings out of git
 Images/*
-!Images/CharlesGPTDemo.mp4
+!Images/SecondBrainDemo.mp4
 !Images/CharlesGPTHomepage.png
 !Images/MemoryStorage.png
 !Images/SearchFilePage.png
@@ -61,7 +61,7 @@ Images/*
 !Images/PromptRetrieval.png
 !Images/BetweenPromptsRetrieval.png
 *.mp4
-!Images/CharlesGPTDemo.mp4
+!Images/SecondBrainDemo.mp4
 *.mov
 *.mkv
 

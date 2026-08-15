@@ -1,8 +1,8 @@
-# CharlesGPT
+# Pierce-Mooney-Second-Brain
 
 **A fully local RAG system over a real college archive — hybrid retrieval, cited answers, and a live search visualization — with no paid APIs, no cloud bill, and no uploaded coursework.**
 
-CharlesGPT is a private knowledge product for one student’s materials. It indexes PDFs, Word docs, and source files from college years and portfolio projects, retrieves evidence with hybrid search (SQLite FTS5 + local Qdrant), and answers through a local Ollama model while showing *which* files, pages, and sections grounded the reply.
+Pierce-Mooney-Second-Brain is a private knowledge product for one student’s materials. It indexes PDFs, Word docs, and source files from college years and portfolio projects, retrieves evidence with hybrid search (SQLite FTS5 + local Qdrant), and answers through a local Ollama model while showing *which* files, pages, and sections grounded the reply. (The in-app chat UI still brands the assistant as **CharlesGPT** — only the repository / project name is Second Brain.)
 
 It is local on purpose: **keep it free** (Ollama + open-source stack, no per-token API costs) and **keep it private** (coursework never leaves the machine). Built end-to-end: ingestion pipeline, retrieval stack, FastAPI backend, React UI, and product surfaces for chat, search, library, memory, and project browsing. The model is trained on and retrieves knowledge from my four years of college work, including lectures, labs, assignments and projects, alongside projects I have completed since graduating. However, the original lecture and lab materials are excluded from GitHub for privacy and copyright reasons.
 
@@ -12,7 +12,7 @@ It is local on purpose: **keep it free** (Ollama + open-source stack, no per-tok
 
 ## What makes it interesting
 
-Most “chat with PDFs” demos stop at a single folder and a hosted API key. CharlesGPT is designed as a **local-first system** over a multi-year corpus — free to run, private by default:
+Most “chat with PDFs” demos stop at a single folder and a hosted API key. This project is designed as a **local-first system** over a multi-year corpus — free to run, private by default:
 
 - **Hybrid retrieval** — keyword (FTS5) + semantic (Qdrant) fused for exact phrases *and* vague questions  
 - **Local OCR** — PNG/JPEG/WebP (and scanned PDF pages with no text layer) via RapidOCR on-device  
@@ -30,7 +30,7 @@ That combination — retrieval quality, UX, and deliberately avoiding paid cloud
 
 ## Demo
 
-[Download / play the demo video](Images/CharlesGPTDemo.mp4) (~40MB)
+[Download / play the demo video](Images/SecondBrainDemo.mp4) (~40MB)
 
 Typical walkthrough: ask something about coursework → watch the retrieval map → read a cited answer → open a source chunk → browse a portfolio project folder.
 
@@ -44,15 +44,15 @@ Seven workspace pages. Screenshots below are from a local dark-mode run.
 
 ### Chat
 
-Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework.
+Grounded conversation over your archive. Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project) change how answers are framed. Ask mode can also use weather, calc, time, and light web lookup when the question is not coursework. Answers stream token-by-token, and each reply is tagged **RAG**, **Web search**, or **Model answer**.
 
 ![Chat page](Images/CharlesGPTHomepage.png)
 
 #### RAG + live retrieval map
 
-CharlesGPT is a **Retrieval-Augmented Generation (RAG)** system: before the local Ollama model writes an answer, hybrid search pulls evidence from your indexed files (SQLite FTS5 keyword + Qdrant semantic vectors). The chat UI does not hide that step — it **visualises retrieval in real time**.
+This is a **Retrieval-Augmented Generation (RAG)** system: before the local Ollama model writes an answer, hybrid search pulls evidence from your indexed files (SQLite FTS5 keyword + Qdrant semantic vectors). The chat UI does not hide that step — it **visualises retrieval in real time**.
 
-When you send a prompt, the map expands from the CharlesGPT hub through years / modules / files. Status shows scan progress (e.g. hundreds of files in a few seconds), while a **Probing** panel lists the documents currently under consideration. Matches light up as hybrid retrieval ranks evidence; only then does the model generate a cited answer. **Map: KEEP / FADE** controls whether the settled graph stays on screen between turns.
+When you send a prompt, the map expands from the assistant hub through years / modules / files. Status shows scan progress (e.g. hundreds of files in a few seconds), while a **Probing** panel lists the documents currently under consideration. Matches light up as hybrid retrieval ranks evidence; only then does the model generate a cited answer. **Map: KEEP / FADE** controls whether the settled graph stays on screen between turns.
 
 That makes the pipeline inspectable: you can see *that* RAG ran, *what* was scanned, and *which* files were probed — not a black-box chat API.
 
@@ -62,7 +62,7 @@ That makes the pipeline inspectable: you can see *that* RAG ran, *what* was scan
 
 ### Memory
 
-Bank of facts CharlesGPT has learned — explicit “remember that…” notes plus routes learned from prior chats. Manageable from Chat (`what do you remember`, `forget everything`).
+Bank of facts the assistant has learned — explicit “remember that…” notes plus routes learned from prior chats. Manageable from Chat (`what do you remember`, `forget everything`).
 
 ![Memory page](Images/MemoryStorage.png)
 
@@ -74,13 +74,13 @@ Hybrid / keyword / semantic retrieval **without** LLM generation — just ranked
 
 ### Library
 
-Indexed documents with filters (filename, year, module, type) and **Run ingest** for incremental updates. Originals on disk are never modified.
+Indexed documents with filters (filename, year, module, type) and **Run ingest** for incremental updates, with a live progress panel (current file, counters, recent log). Originals on disk are never modified.
 
 ![Library page](Images/LibraryPage.png)
 
 ### Modules
 
-Module cards derived from path metadata on indexed docs — year + document counts across the corpus.
+Clickable module cards grouped by year — open a module to browse indexed documents and inspect chunks.
 
 ![Modules page](Images/ModulesPage.png)
 
@@ -92,7 +92,7 @@ Portfolio folders under `Projects/`. Click in to browse structure and preview fi
 
 ### Knowledge
 
-High-level profile: years, modules, and project folders linked to indexed evidence — a snapshot of what the system knows about your archive.
+Same card + drill-in pattern as Modules and Projects: year-grouped modules and portfolio folders linked to indexed evidence.
 
 ![Knowledge page](Images/KnowledgePage.png)
 
@@ -160,7 +160,7 @@ The LLM answers the turn. **SQLite, Qdrant, and the files** are the long-term kn
 1. Student asks: *“Give me an interview answer about my Linux experience.”*
 2. System retrieves relevant labs / project READMEs / notes via hybrid search.
 3. Live map highlights years → modules → files as matches land.
-4. Model writes a first-person answer grounded in those chunks.
+4. Model streams a first-person answer grounded in those chunks.
 5. Student expands sources to verify the evidence.
 6. Optional: open **Projects** and browse the related repo structure on disk.
 
@@ -174,7 +174,7 @@ For non-academic asks (“what’s the weather?”, “remember that I prefer sh
 
 - **Backend:** Python, FastAPI, Pydantic Settings  
 - **Data:** SQLite (FTS5), Qdrant (local embedded)  
-- **LLM / embeddings:** Ollama (default chat `qwen2.5:14b`, embed `nomic-embed-text`)  
+- **LLM / embeddings:** Ollama (default chat `gpt-oss:20b`, embed `nomic-embed-text`)  
 - **Ingest:** PDF / DOCX / images (local OCR) / common source & text formats  
 - **Frontend:** React, TypeScript, Vite  
 - **Runtime:** Windows-friendly local `127.0.0.1` services
@@ -194,6 +194,8 @@ Local is a product choice, not just a deployment detail:
 - Optional DuckDuckGo Instant Answer for lightweight non-archive questions (still no API key) — disable with `WEB_LOOKUP_ENABLED=false`
 
 **On GitHub:** `Projects/` and `demo_corpus/` are safe to ship. Real years stay local. Point a clone at `DOCUMENTS_PATH=demo_corpus` to demo Q&A without private files.
+
+Repo: [https://github.com/PMooney03/Pierce-Mooney-Second-Brain](https://github.com/PMooney03/Pierce-Mooney-Second-Brain)
 
 ---
 
@@ -222,7 +224,7 @@ copy .env.example .env
 ```
 
 ```powershell
-ollama pull qwen2.5:14b
+ollama pull gpt-oss:20b
 ollama pull nomic-embed-text
 ```
 
@@ -283,10 +285,9 @@ pytest -q
 **Next**
 
 1. PPTX parser
-2. Streaming ingest progress
-3. Optional local cross-encoder rerank
-4. Richer knowledge graph from evidence (tech/topics with citations)
-5. Optional chat image attach (vision model)
+2. Optional local cross-encoder rerank
+3. Richer knowledge graph from evidence (tech/topics with citations)
+4. Optional chat image attach (vision model)
 ---
 
 Built as a portfolio system: real retrieval constraints, real local data, deliberately **free to operate**, and a UI that makes the pipeline visible — not a thin wrapper around a paid hosted chat API.
