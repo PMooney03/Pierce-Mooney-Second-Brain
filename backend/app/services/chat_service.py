@@ -40,7 +40,10 @@ _EXPERIENCE_RE = re.compile(
     r"\btech\s+stack\b|"
     r"\b(?:coding|programming)\s+experience\b|"
     r"\bportfolio\b|"
-    r"\bwhat\s+(?:can|do|have)\s+i\s+(?:code|program|know|use|build)\b"
+    r"\bwhat\s+(?:can|do|have)\s+i\s+(?:code|program|know|use|build)\b|"
+    r"\bhow\s+have\s+i\s+(?:used|done|built|written|applied)\b|"
+    r"\bhave\s+i\s+(?:used|done|built|written|applied)\b|"
+    r"\bwhere\s+(?:have|did)\s+i\s+(?:use|used|build|built|write|wrote)\b"
     r")",
     re.I,
 )
@@ -66,7 +69,13 @@ _ACADEMIC_HINT_RE = re.compile(
     r"freshman|sophomore|junior\s+year|senior\s+year|"
     r"my\s+college|college\s+(?:files|materials|work|years?|archive)|"
     r"what\s+did\s+i\s+(?:study|learn|do)|tell\s+me\s+about\s+my|"
-    r"python|docker|kubernetes|linux|nis2|java\b|typescript|javascript"
+    r"tell\s+me\s+about\s+a\s+project|"
+    r"python|docker|kubernetes|linux|nis2|java\b|typescript|javascript|"
+    r"powershell|\.ps1\b|ansible|vagrant|"
+    r"my\s+projects?|(?:in|from|across|on)\s+my\s+projects?|"
+    r"(?:a|the|which|what)\s+project(?:s)?\s+(?:i\s+)?(?:use|used|using|with|that)|"
+    r"project\s+(?:i\s+)?(?:use|used|using)|"
+    r"project\s+files?|portfolio\s+projects?"
     r")\b",
     re.I,
 )
@@ -240,6 +249,14 @@ def _wants_archive(message: str, history: list[ChatTurn], mode: ChatMode) -> boo
     if _is_experience_question(message) or _ACADEMIC_HINT_RE.search(message):
         return True
     if _is_followup(message) and _prior_was_academic(history):
+        return True
+    # First-person + project/tech wording that missed the hint list
+    if re.search(
+        r"\b(?:i\s+use|i\s+used|i'?ve\s+used|my\s+\w+)\b.*\b(?:project|lab|module|repo)\b|"
+        r"\b(?:project|lab|module|repo)\b.*\b(?:i\s+use|i\s+used|i'?ve\s+used)\b",
+        message,
+        re.I,
+    ):
         return True
     return False
 

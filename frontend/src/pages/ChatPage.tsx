@@ -62,6 +62,12 @@ const MODES: { id: ChatMode; label: string; hint: string; placeholder: string }[
     placeholder: 'What do my notes say about…',
   },
   {
+    id: 'search',
+    label: 'Search',
+    hint: 'Evidence only — no LLM write-up',
+    placeholder: 'Find files about…',
+  },
+  {
     id: 'explain',
     label: 'Explain',
     hint: 'Simplify retrieved material',
@@ -92,6 +98,9 @@ const MODES: { id: ChatMode; label: string; hint: string; placeholder: string }[
     placeholder: 'Break down my project…',
   },
 ]
+
+const ASK_MODE = MODES[0]
+const MORE_MODES = MODES.filter((m) => m.id !== 'ask')
 
 function modeLabel(mode?: string): string | null {
   if (!mode) return null
@@ -178,8 +187,12 @@ export default function ChatPage() {
   const [ready, setReady] = useState(false)
   const [learnToast, setLearnToast] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
+  const [modesExpanded, setModesExpanded] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const activeMode = MODES.find((m) => m.id === mode) ?? MODES[0]
+  const chatScrollRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
+  const lastScrollTopRef = useRef(0)
+  const activeMode = MODES.find((m) => m.id === mode) ?? ASK_MODE
   const brain = useBrainTrace(true)
 
   useEffect(() => {
@@ -242,8 +255,28 @@ export default function ChatPage() {
     return () => window.clearTimeout(t)
   }, [learnToast])
 
+  function onChatScroll() {
+    const el = chatScrollRef.current
+    if (!el) return
+    const top = el.scrollTop
+    // Any upward movement disconnects from autoscroll.
+    if (top + 1 < lastScrollTopRef.current) {
+      stickToBottomRef.current = false
+    }
+    const dist = el.scrollHeight - top - el.clientHeight
+    // Only re-attach when the user is basically at the bottom again.
+    if (dist <= 8) {
+      stickToBottomRef.current = true
+    }
+    lastScrollTopRef.current = top
+  }
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth' })
+    if (!stickToBottomRef.current) return
+    const el = chatScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    lastScrollTopRef.current = el.scrollTop
   }, [messages, busy, liveSources.length, streaming])
 
   async function ask(text: string, overrideMode?: ChatMode) {
@@ -262,9 +295,13 @@ export default function ChatPage() {
       }
     }
     const useMode = overrideMode ?? mode
-    if (overrideMode) setMode(overrideMode)
+    if (overrideMode) {
+      setMode(overrideMode)
+      if (overrideMode !== 'ask') setModesExpanded(true)
+    }
     setError(null)
     setInput('')
+    stickToBottomRef.current = true
     const history = messages.map(({ role, content }) => ({ role, content }))
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'user', content: trimmed }])
     setLiveSources([])
@@ -350,7 +387,7 @@ export default function ChatPage() {
       setBusy(false)
       setStreaming(false)
       brain.finishIfSearching()
-      // Quiet mode: after the answer, fold back to ambient core (keep cool, not sticky map).
+      // FADE: clear constellation after a beat. KEEP: leave settled graph visible.
       if (!traceEnabled) {
         window.setTimeout(() => brain.reset(), 1600)
       }
@@ -380,7 +417,9 @@ export default function ChatPage() {
   }
 
   const showHero = messages.length === 0 && !busy
-  const networkDetailed = traceEnabled
+  const keepMap = traceEnabled
+  const mapSearching = brain.searching || (busy && !brain.settled)
+  const mapSettled = brain.settled && !brain.searching
 
   if (!ready) {
     return (
@@ -401,12 +440,16 @@ export default function ChatPage() {
         </div>
         <div className="page-header-actions">
           <button
-            className={`ghost-btn${traceEnabled ? ' active' : ''}`}
+            className={`ghost-btn${keepMap ? ' active' : ''}`}
             type="button"
             onClick={() => setTraceEnabled((v) => !v)}
-            title="Keep the full search map after answers (off = ambient core only)"
+            title={
+              keepMap
+                ? 'KEEP: leave the retrieval map on screen after answers'
+                : 'FADE: clear the map back to the ambient core after answers'
+            }
           >
-            Map: {traceEnabled ? 'KEEP' : 'FADE'}
+            Map: {keepMap ? 'KEEP' : 'FADE'}
           </button>
           <button className="ghost-btn" type="button" onClick={() => void newChat()}>
             New chat
@@ -422,13 +465,13 @@ export default function ChatPage() {
       ) : null}
 
       <div
-        className={`content chat-surface has-network has-ambient${busy || brain.searching ? ' is-searching' : ''}${brain.settled && !brain.searching ? ' is-settled' : ''}${networkDetailed ? ' network-detailed' : ' network-quiet'}`}
+        className={`content chat-surface has-network has-ambient${mapSearching ? ' is-searching' : ''}${mapSettled ? ' is-settled' : ''}${keepMap ? ' network-keep' : ' network-fade'}`}
       >
         <div className="neural-backdrop-fill" aria-hidden={false}>
           <NeuralSearchViz
             graph={brain.graph}
-            searching={brain.searching || busy}
-            settled={brain.settled && !brain.searching}
+            searching={mapSearching}
+            settled={mapSettled}
             statusText={brain.statusText}
             pulseToId={brain.pulseToId}
             matchCount={brain.matchCount}
@@ -437,11 +480,11 @@ export default function ChatPage() {
             totalDocs={brain.totalDocs}
             elapsedMs={brain.elapsedMs}
             onSelectNode={brain.selectNode}
-            selectedSource={networkDetailed ? brain.selectedSource : null}
+            selectedSource={keepMap ? brain.selectedSource : null}
           />
         </div>
 
-        <div className="chat-foreground">
+        <div className="chat-foreground" ref={chatScrollRef} onScroll={onChatScroll}>
           {showHero && (
             <div className="chat-hero">
               <h3>CharlesGPT</h3>
@@ -542,17 +585,63 @@ export default function ChatPage() {
 
       <form className="composer" onSubmit={onSubmit}>
         <div className="composer-controls">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              title={m.hint}
-              className={`mode-pill${mode === m.id ? ' active' : ''}`}
-              onClick={() => setMode(m.id)}
-            >
-              {m.label}
-            </button>
-          ))}
+          <button
+            type="button"
+            title={ASK_MODE.hint}
+            className={`mode-pill${mode === 'ask' ? ' active' : ''}`}
+            onClick={() => {
+              setMode('ask')
+              setModesExpanded(false)
+            }}
+          >
+            Ask
+          </button>
+          {!modesExpanded ? (
+            <>
+              {mode !== 'ask' ? (
+                <button
+                  type="button"
+                  title={activeMode.hint}
+                  className="mode-pill active"
+                  onClick={() => setModesExpanded(true)}
+                >
+                  {activeMode.label}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="mode-pill mode-ellipsis"
+                title="More modes"
+                aria-expanded={false}
+                onClick={() => setModesExpanded(true)}
+              >
+                …
+              </button>
+            </>
+          ) : (
+            <>
+              {MORE_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={m.hint}
+                  className={`mode-pill${mode === m.id ? ' active' : ''}`}
+                  onClick={() => setMode(m.id)}
+                >
+                  {m.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="mode-pill mode-ellipsis"
+                title="Hide modes"
+                aria-expanded={true}
+                onClick={() => setModesExpanded(false)}
+              >
+                …
+              </button>
+            </>
+          )}
         </div>
         <div className="composer-row">
           <textarea

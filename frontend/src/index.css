@@ -790,6 +790,43 @@ html[data-theme='dark'] .chat-surface.has-network .message .message-body code {
   filter: saturate(0.9) contrast(0.98);
 }
 
+/* KEEP: settled constellation stays readable behind chat */
+.chat-surface.network-keep.is-settled .neural-backdrop-fill {
+  opacity: 0.72;
+  filter: saturate(1.05) contrast(1.02) brightness(1.02);
+}
+
+.chat-surface.network-keep.is-settled .nb-label {
+  opacity: 0.85 !important;
+}
+
+.chat-surface.network-keep.is-settled .nb-hud {
+  opacity: 0.9;
+}
+
+/* FADE: dim hard once search ends (then reset clears it) */
+.chat-surface.network-fade:not(.is-searching) .neural-backdrop-fill {
+  opacity: 0.28;
+  filter: saturate(0.75) contrast(0.95) brightness(0.96);
+}
+
+.chat-surface.network-fade:not(.is-searching) .nb-hud {
+  opacity: 0.35;
+}
+
+.chat-surface.network-fade:not(.is-searching) .nb-label {
+  opacity: 0.12 !important;
+}
+
+.chat-surface.network-fade:not(.is-searching) .nb-seal-word,
+.chat-surface.network-fade:not(.is-searching) .nb-seal-sub {
+  opacity: 0.25;
+}
+
+.chat-surface.network-fade.is-searching .nb-label {
+  opacity: 0.55;
+}
+
 .chat-surface.is-searching .nb-hud-row {
   background: rgba(236, 254, 255, 0.82);
   border-color: rgba(20, 143, 156, 0.28);
@@ -799,23 +836,6 @@ html[data-theme='dark'] .chat-surface.has-network .message .message-body code {
 .chat-surface.is-searching .nb-hud-main {
   color: #0f766e;
   letter-spacing: 0.1em;
-}
-
-.chat-surface.network-quiet:not(.is-searching) .nb-hud {
-  opacity: 0.35;
-}
-
-.chat-surface.network-quiet:not(.is-searching) .nb-label {
-  opacity: 0.12 !important;
-}
-
-.chat-surface.network-quiet:not(.is-searching) .nb-seal-word,
-.chat-surface.network-quiet:not(.is-searching) .nb-seal-sub {
-  opacity: 0.25;
-}
-
-.chat-surface.network-quiet.is-searching .nb-label {
-  opacity: 0.55;
 }
 
 /* legacy — unused */
@@ -1193,6 +1213,14 @@ html[data-theme='dark'] .chat-surface.has-network .message .message-body code {
   color: #fff;
 }
 
+.mode-ellipsis {
+  min-width: 2.15rem;
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
 .composer-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1478,7 +1506,7 @@ html[data-theme='dark'] .chat-surface.has-network .message .message-body code {
 }
 
 .neural-backdrop.phase-settled {
-  opacity: 0.42;
+  opacity: 0.72;
 }
 
 .nb-svg {
