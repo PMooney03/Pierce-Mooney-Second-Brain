@@ -4,6 +4,7 @@ import Markdown from 'react-markdown'
 import { api, type ChatMode, type LearnedMemory, type Source } from '../api'
 import NeuralSearchViz from '../components/brain/NeuralSearchViz'
 import { useBrainTrace } from '../hooks/useBrainTrace'
+import { useSettings } from '../settings'
 
 interface Message {
   id: string
@@ -175,14 +176,13 @@ function SourceCards({ sources, defaultOpen = false }: { sources: Source[]; defa
 const SESSION_KEY = 'secondbrain.sessionId'
 
 export default function ChatPage() {
+  const { mapKeep } = useSettings()
   const [mode, setMode] = useState<ChatMode>('ask')
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [liveSources, setLiveSources] = useState<Source[]>([])
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  // Live network on by default — ambient core always visible; toggle only dims detail.
-  const [traceEnabled, setTraceEnabled] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const [learnToast, setLearnToast] = useState<string | null>(null)
@@ -388,7 +388,7 @@ export default function ChatPage() {
       setStreaming(false)
       brain.finishIfSearching()
       // FADE: clear constellation after a beat. KEEP: leave settled graph visible.
-      if (!traceEnabled) {
+      if (!mapKeep) {
         window.setTimeout(() => brain.reset(), 1600)
       }
     }
@@ -417,7 +417,6 @@ export default function ChatPage() {
   }
 
   const showHero = messages.length === 0 && !busy
-  const keepMap = traceEnabled
   const mapSearching = brain.searching || (busy && !brain.settled)
   const mapSettled = brain.settled && !brain.searching
 
@@ -439,18 +438,6 @@ export default function ChatPage() {
           <h2>Chat</h2>
         </div>
         <div className="page-header-actions">
-          <button
-            className={`ghost-btn${keepMap ? ' active' : ''}`}
-            type="button"
-            onClick={() => setTraceEnabled((v) => !v)}
-            title={
-              keepMap
-                ? 'KEEP: leave the retrieval map on screen after answers'
-                : 'FADE: clear the map back to the ambient core after answers'
-            }
-          >
-            Map: {keepMap ? 'KEEP' : 'FADE'}
-          </button>
           <button className="ghost-btn" type="button" onClick={() => void newChat()}>
             New chat
           </button>
@@ -465,7 +452,7 @@ export default function ChatPage() {
       ) : null}
 
       <div
-        className={`content chat-surface has-network has-ambient${mapSearching ? ' is-searching' : ''}${mapSettled ? ' is-settled' : ''}${keepMap ? ' network-keep' : ' network-fade'}`}
+        className={`content chat-surface has-network has-ambient${mapSearching ? ' is-searching' : ''}${mapSettled ? ' is-settled' : ''}${mapKeep ? ' network-keep' : ' network-fade'}`}
       >
         <div className="neural-backdrop-fill" aria-hidden={false}>
           <NeuralSearchViz
@@ -480,7 +467,7 @@ export default function ChatPage() {
             totalDocs={brain.totalDocs}
             elapsedMs={brain.elapsedMs}
             onSelectNode={brain.selectNode}
-            selectedSource={keepMap ? brain.selectedSource : null}
+            selectedSource={mapKeep ? brain.selectedSource : null}
           />
         </div>
 

@@ -185,7 +185,7 @@ export function layoutBrainGraph(state: BrainGraphState): BrainGraphState {
   return { ...state, nodes, edges }
 }
 
-export function shortLabel(label: string, max = 20): string {
+export function shortLabel(label: string, max = 15): string {
   if (label.length <= max) return label
   return label.slice(0, max - 1) + '…'
 }

@@ -9,23 +9,26 @@ import LibraryPage from './pages/LibraryPage'
 import ModulesPage from './pages/ModulesPage'
 import ProjectsPage from './pages/ProjectsPage'
 import KnowledgePage from './pages/KnowledgePage'
+import { SettingsProvider } from './settings'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route element={<App />}>
-          <Route index element={<ChatPage />} />
-          <Route path="memory" element={<MemoryPage />} />
-          <Route path="search" element={<SearchPage />} />
-          <Route path="library" element={<LibraryPage />} />
-          <Route path="modules" element={<ModulesPage />} />
-          <Route path="projects" element={<ProjectsPage />} />
-          <Route path="knowledge" element={<KnowledgePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <SettingsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<App />}>
+            <Route index element={<ChatPage />} />
+            <Route path="memory" element={<MemoryPage />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="library" element={<LibraryPage />} />
+            <Route path="modules" element={<ModulesPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SettingsProvider>
   </StrictMode>,
 )
