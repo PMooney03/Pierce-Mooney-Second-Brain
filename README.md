@@ -10,7 +10,7 @@ Coursework stays on my machine. Real lecture/lab PDFs are gitignored; `Projects/
 
 ## Demo
 
-[SecondBrainDemo.mp4](Images/SecondBrainDemo.mp4) (~168MB, Git LFS)
+[SecondBrainDemo.mp4](Images/SecondBrainDemo.mp4) (~116MB, Git LFS)
 
 Ask about coursework → watch the retrieval map → read a cited, streaming answer → open a source.
 
@@ -22,17 +22,19 @@ Ask about coursework → watch the retrieval map → read a cited, streaming ans
 
 Modes (Ask, Recall, Explain, Connect, Revision, Interview, Project). Replies stream, and each answer is tagged **RAG**, **Web search**, or **Model answer**.
 
-![Chat](Images/CharlesGPTHomepage.png)
+![Chat (light)](Images/LightModeChatPage.png)
 
-![Retrieval while answering](Images/PromptRetrieval.png)
+![Chat (dark)](Images/DarkmodeChatPage.png)
 
-![Map between prompts](Images/BetweenPromptsRetrieval.png)
+![Chat modes](Images/ChatmodePage.png)
 
-### Memory · Search · Library
+![RAG retrieval (light)](Images/RagRetrievalLightModePage.png)
 
-![Memory](Images/MemoryStorage.png)
+![RAG retrieval (dark)](Images/RagRetrievalDarkMode.png)
 
-![Search](Images/SearchFilePage.png)
+### Memory · Library
+
+![Memory](Images/MemoryPage.png)
 
 ![Library](Images/LibraryPage.png)
 
