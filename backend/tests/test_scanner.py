@@ -37,6 +37,6 @@ def test_scan_finds_pdf_docx_and_code(tmp_path: Path) -> None:
     names = {f.filename for f in found}
     assert "notes.pdf" in names
     assert "essay.docx" in names
+    assert "slides.pptx" in names
     assert "main.py" in names
     assert "board.png" in names
-    assert "slides.pptx" not in names

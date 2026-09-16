@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".docx",
+    ".pptx",
     ".png",
     ".jpg",
     ".jpeg",

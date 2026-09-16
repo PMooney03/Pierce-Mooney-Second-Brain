@@ -64,29 +64,6 @@ def learn_from_turn(
         if mid:
             ids.append(mid)
 
-    # Archive routing memory: where this topic lived
-    if sources:
-        areas: list[str] = []
-        seen: set[str] = set()
-        for s in sources[:10]:
-            year = (s.get("year") or "").strip()
-            module = (s.get("module") or "").strip()
-            label = " / ".join(x for x in [year, module] if x)
-            if not label or label in seen:
-                continue
-            seen.add(label)
-            areas.append(label)
-        if areas:
-            topic = _short(question, 80)
-            note = (
-                f"From prior chat about “{topic}”: useful archive areas were "
-                + "; ".join(areas[:5])
-                + "."
-            )
-            mid = db.add_memory(note, kind="learned")
-            if mid:
-                ids.append(mid)
-
     # Keep learned bank from exploding — prune oldest learned beyond cap
     _prune_learned(db, keep=80)
     return ids

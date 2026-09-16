@@ -24,6 +24,9 @@ _SHOW_RE = re.compile(
 _FORGET_ALL_RE = re.compile(r"\b(forget everything|clear(?:\s+your)?\s+memory|wipe memories)\b", re.I)
 _FORGET_RE = re.compile(r"^\s*(?:please\s+)?forget(?:\s+that)?\s*[:\-]?\s*(.+)$", re.I | re.S)
 
+# Internal routing hints — not user-facing facts; never inject into answers.
+_ROUTING_MEMORY_RE = re.compile(r"useful archive areas were|from prior chat about", re.I)
+
 
 def extract_remember(message: str) -> str | None:
     text = message.strip()
@@ -87,7 +90,10 @@ def relevant_memories_block(db: SQLiteDatabase, message: str, limit: int = 8) ->
         return ""
     filtered = []
     for r in rows:
-        blob = (r.get("content") or "").lower()
+        content = r.get("content") or ""
+        if _ROUTING_MEMORY_RE.search(content):
+            continue
+        blob = content.lower()
         score = sum(1 for t in tokens if t in blob)
         if score >= 1:
             filtered.append(r)

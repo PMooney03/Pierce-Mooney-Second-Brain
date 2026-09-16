@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   api,
   type DocumentItem,
@@ -380,7 +381,7 @@ export default function KnowledgePage() {
                   {fileView.readable && fileView.text != null ? (
                     fileView.is_markdown ? (
                       <div className="message-body md project-readme">
-                        <Markdown>{fileView.text}</Markdown>
+                        <Markdown remarkPlugins={[remarkGfm]}>{fileView.text}</Markdown>
                       </div>
                     ) : (
                       <pre className="project-code">{fileView.text}</pre>

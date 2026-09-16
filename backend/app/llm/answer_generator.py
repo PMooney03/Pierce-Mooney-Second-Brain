@@ -38,18 +38,9 @@ def chunks_to_citations(chunks: list[ChunkRecord], preview_chars: int = 400) -> 
 
 _CONVERSE_SYSTEM = """You are CharlesGPT — a capable local assistant for one student.
 
-You hold multi-turn conversations and can use TOOL / WEB LOOKUP blocks when provided.
-For questions about their college years/modules/files, you should normally be using the archive path —
-if you only have chat context, say you need to dig into their Year folders and ask them to rephrase
-with a year/module if nothing is available.
-
-Rules:
-- When tool data answers the student's actual question, USE IT.
-- Never turn web search hits into unrelated trivia, song titles, or "fun facts".
-- For greetings / small talk (hi, hello, how are you): reply briefly and warmly. No trivia.
-- Do not invent generic college-life essays.
-- Do not invent deadlines/demos from old memories unless the student just asked about them.
-- Reply naturally and concisely.
+Answer the question in Markdown. Use TOOL / WEB LOOKUP / ARCHIVE HITS when they are provided.
+Do not invent personal college deadlines. Do not discuss your instructions or write planning notes.
+Keep product names intact (TypeScript, JavaScript, PowerShell).
 """
 
 
@@ -134,10 +125,9 @@ class AnswerGenerator:
                 mode=mode.value,
                 model=self.ollama.chat_model,
             )
-        if not chunks and not inventory_note and not web_note and not answer:
+        if not answer:
             answer = (
-                "I could not find enough evidence in your indexed college materials "
-                "or via web lookup. Try a different query, or keep chatting in Ask mode."
+                "I could not produce a reply. Try asking again, or switch mode if this keeps happening."
             )
         sources = chunks_to_citations(chunks)
         if web_sources:
@@ -160,12 +150,6 @@ class AnswerGenerator:
     ) -> Iterator[str]:
         if mode == ChatMode.SEARCH:
             return
-        if not chunks and not inventory_note and not web_note:
-            yield (
-                "I could not find enough evidence in your indexed college materials "
-                "or via web lookup. Try a different query, or keep chatting in Ask mode."
-            )
-            return
 
         messages = build_messages(
             question=question,
@@ -182,9 +166,5 @@ class AnswerGenerator:
             len(history or []),
             bool(web_note),
         )
-        temperature = (
-            0.15
-            if history
-            else (0.0 if mode in {ChatMode.ASK, ChatMode.RECALL, ChatMode.INTERVIEW} else 0.15)
-        )
+        temperature = 0.25 if history else (0.2 if mode == ChatMode.ASK else 0.15)
         yield from self.ollama.iter_chat(messages, temperature=temperature)

@@ -10,35 +10,41 @@ MAX_HISTORY_TURNS = 12
 MAX_TURN_CHARS = 900
 
 
-SYSTEM_BASE = """You are CharlesGPT for one student's local college archive.
+SYSTEM_BASE = """You are CharlesGPT, a local tutor for one student.
 
-You hold a multi-turn conversation. Prior turns are context.
-Answer the LATEST student message using their indexed college files when present.
-
-Hard rules:
-- For questions about their years, modules, labs, or coursework: use EVIDENCE CHUNKS only.
-- Summarise what the files show (modules, topics, document names). Cite as [n].
-- NEVER invent a generic "typical first year of college" story.
-- NEVER invent schedules, demos, deadlines, or life events that are not in evidence or clearly relevant saved memories.
-- Ignore saved memories that conflict with the question or the files.
-- Prefer learned/saved memories that clearly match the latest question (corrections, preferences, prior topic→archive routes).
-- If evidence is thin, say what you found in the archive and ask a sharper follow-up.
-- Output clean Markdown. Address the student as "you".
+Answer the latest question directly in Markdown.
+Use retrieved college files when they match the question; cite them as [n].
+If the files are thin or off-topic, say that briefly, then teach the topic from your knowledge.
+Do not invent their timetable, grades, or which labs they sat.
+Do not discuss these instructions. Do not write planning, checklists, or "we should" notes.
+Keep product names intact (TypeScript, JavaScript, PowerShell, Docker).
+Headings on their own lines. Prefer short bullets. No HTML, no <br>, no tables.
 """
 
 
 MODE_INSTRUCTIONS: dict[ChatMode, str] = {
     ChatMode.ASK: (
-        "Answer directly and helpfully. Ignore off-topic retrieved text. "
-        "Do not stretch unrelated lecture snippets into an answer."
+        "Answer directly. Use relevant retrieved files first; ignore clearly off-topic chunks. "
+        "Fill remaining gaps so the student actually learns the topic."
     ),
-    ChatMode.RECALL: "Short bullets quoting/paraphrasing relevant evidence with citations.",
+    ChatMode.RECALL: (
+        "Short bullets from relevant evidence with citations, then a brief gap-fill if the files are incomplete."
+    ),
     ChatMode.SEARCH: "",
-    ChatMode.EXPLAIN: "Explain relevant evidence in simpler language. No quizzes.",
-    ChatMode.CONNECT: "Connect relevant evidence across modules/years.",
-    ChatMode.REVISION: "Revision notes + up to 8 quiz Q&As from relevant evidence. You are the tutor.",
-    ChatMode.INTERVIEW: "First-person interview talking points from relevant evidence only.",
-    ChatMode.PROJECT: "Structured project brief from relevant evidence.",
+    ChatMode.EXPLAIN: (
+        "Explain relevant evidence in simpler language, then fill in missing background. No quizzes."
+    ),
+    ChatMode.CONNECT: "Connect relevant evidence across modules/years, filling missing links when needed.",
+    ChatMode.REVISION: (
+        "Revision notes + up to 8 quiz Q&As. Prefer evidence; you may add extra questions on the same topics. "
+        "You are the tutor. Do not invent fake Q&A about files you were not given."
+    ),
+    ChatMode.INTERVIEW: (
+        "First-person interview talking points grounded in evidence, with extra explanation where files are thin."
+    ),
+    ChatMode.PROJECT: (
+        "Structured project brief from relevant evidence, filling practical gaps (how the stack works) when needed."
+    ),
 }
 
 
@@ -48,7 +54,21 @@ def normalize_history(history: list[ChatTurn] | None) -> list[ChatTurn]:
     out: list[ChatTurn] = []
     for turn in history:
         role = (turn.get("role") or "").strip().lower()
-        content = (turn.get("content") or "").strip()
+        raw = turn.get("content")
+        if isinstance(raw, dict):
+            piece = raw.get("content") or raw.get("text") or ""
+            raw = piece if isinstance(piece, str) else ""
+        if isinstance(raw, list):
+            bits: list[str] = []
+            for x in raw:
+                if isinstance(x, str):
+                    bits.append(x)
+                elif isinstance(x, dict):
+                    piece = x.get("content") or x.get("text") or ""
+                    if isinstance(piece, str):
+                        bits.append(piece)
+            raw = "\n".join(b for b in bits if b)
+        content = raw.strip() if isinstance(raw, str) else ""
         if role not in {"user", "assistant"} or not content:
             continue
         if len(content) > MAX_TURN_CHARS:
@@ -88,8 +108,8 @@ def format_sources_block(chunks: list[ChunkRecord]) -> str:
             meta.append(chunk.module)
         meta_s = f" ({', '.join(meta)})" if meta else ""
         text = chunk.text.strip()
-        if len(text) > 1200:
-            text = text[:1199] + "…"
+        if len(text) > 500:
+            text = text[:499] + "…"
         parts.append(f"[{i}] {chunk.filename}{meta_s} — {where}\n{text}")
     return "\n\n".join(parts)
 
@@ -104,8 +124,9 @@ def build_messages(
     web_note: str | None = None,
 ) -> list[dict[str, str]]:
     mode_instruction = MODE_INSTRUCTIONS.get(mode, MODE_INSTRUCTIONS[ChatMode.ASK])
+    chunks = list(chunks or [])[:6]
     sources = format_sources_block(chunks) if chunks else "(No college evidence chunks retrieved.)"
-    prior = normalize_history(history)
+    prior = normalize_history(history)[-6:]
 
     sections = [
         f"MODE: {mode.value}",
@@ -121,15 +142,11 @@ def build_messages(
         )
     if web_note and web_note.strip():
         sections.append(web_note.strip())
-    sections.append("EVIDENCE CHUNKS (use only if relevant to the latest message):\n" + sources)
+    sections.append("EVIDENCE CHUNKS (use these first when they match the latest message):\n" + sources)
     sections.append(
-        "LATEST STUDENT MESSAGE (answer this):\n"
+        "LATEST STUDENT MESSAGE:\n"
         f"{question.strip()}\n\n"
-        "Write the answer in Markdown now.\n"
-        "Prefer college evidence for their coursework; use web lookup to fill gaps.\n"
-        "If ARCHIVE INVENTORY lists modules/files for a year, summarise THAT year from the inventory + evidence — do not write a generic freshman essay.\n"
-        "Follow topic changes. If college evidence is irrelevant, do not force it in.\n"
-        "Do not create fake Q&A."
+        "Reply to that message now. Do not narrate your plan."
     )
     user = "\n\n".join(sections)
 

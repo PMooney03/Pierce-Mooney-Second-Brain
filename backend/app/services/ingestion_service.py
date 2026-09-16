@@ -18,6 +18,7 @@ from app.ingestion.docx_parser import DocxParseError, DocxParser
 from app.ingestion.image_parser import ImageParseError, ImageParser
 from app.ingestion.metadata import extract_path_metadata
 from app.ingestion.pdf_parser import PdfParseError, PdfParser
+from app.ingestion.pptx_parser import PptxParseError, PptxParser
 from app.ingestion.scanner import ScannedFile, scan_documents
 from app.logging_config import get_logger
 from app.retrieval.embeddings import EmbeddingService
@@ -67,6 +68,7 @@ class IngestionService:
         self.registry = ParserRegistry()
         self.registry.register(PdfParser())
         self.registry.register(DocxParser())
+        self.registry.register(PptxParser())
         self.registry.register(CodeParser())
         if settings.ocr_enabled:
             self.registry.register(ImageParser())
@@ -195,7 +197,7 @@ class IngestionService:
 
         try:
             extracted = parser.parse(scanned.path, scanned.relative_path)
-        except (PdfParseError, DocxParseError, CodeParseError, ImageParseError):
+        except (PdfParseError, DocxParseError, PptxParseError, CodeParseError, ImageParseError):
             raise
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(str(exc)) from exc

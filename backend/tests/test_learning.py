@@ -8,7 +8,7 @@ def test_extract_user_correction():
     assert any("correction" in f.lower() or "finished college" in f.lower() for f in facts)
 
 
-def test_learn_from_sources(tmp_path):
+def test_learn_does_not_save_routing_memories(tmp_path):
     from app.database.sqlite import SQLiteDatabase
 
     db = SQLiteDatabase(tmp_path / "t.db")
@@ -21,6 +21,21 @@ def test_learn_from_sources(tmp_path):
             {"year": "Year 4", "module": "CloudComputing", "filename": "b.pdf"},
         ],
     )
+    assert not ids
+    mems = db.list_memories()
+    assert not any("useful archive areas were" in m["content"] for m in mems)
+
+
+def test_learn_user_facts_still_saved(tmp_path):
+    from app.database.sqlite import SQLiteDatabase
+
+    db = SQLiteDatabase(tmp_path / "t.db")
+    ids = learn_from_turn(
+        db,
+        question="My name is Pierce and I study computer science",
+        answer="Got it.",
+        sources=[],
+    )
     assert ids
     mems = db.list_memories()
-    assert any("Docker" in m["content"] or "IntroToDevOps" in m["content"] for m in mems)
+    assert any("Pierce" in m["content"] for m in mems)

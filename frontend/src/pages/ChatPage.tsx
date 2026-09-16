@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import Markdown from 'react-markdown'
-import { api, type ChatMode, type LearnedMemory, type Source } from '../api'
+import remarkGfm from 'remark-gfm'
+import { api, asChatText, type ChatMode, type LearnedMemory, type Source } from '../api'
 import NeuralSearchViz from '../components/brain/NeuralSearchViz'
 import { useBrainTrace } from '../hooks/useBrainTrace'
 import { useSettings } from '../settings'
@@ -113,9 +114,43 @@ const SUGGESTIONS: { mode: ChatMode; text: string }[] = [
   { mode: 'interview', text: 'Interview answer: my Linux experience' },
 ]
 
-function SourceCards({ sources, defaultOpen = false }: { sources: Source[]; defaultOpen?: boolean }) {
-  const [showList, setShowList] = useState(defaultOpen)
-  const [open, setOpen] = useState<string | null>(null)
+function sourcePlace(s: Source): string {
+  if (s.page != null) return `Page ${s.page}`
+  if (s.heading) return `Section: ${s.heading}`
+  return 'Location unknown'
+}
+
+function joinChatText(left: string, right: string): string {
+  if (!left) return right
+  if (!right) return left
+  return `${left}${right}`
+}
+
+function sanitizeChatMarkdown(text: string): string {
+  let out = text.replace(/<br\s*\/?>/gi, ' · ')
+  out = out.replace(/<\/p>/gi, '\n\n')
+  out = out.replace(/<p[^>]*>/gi, '')
+  out = out.replace(/<\/?[^>]+>/g, '')
+  return out
+}
+
+function citeMarkdown(text: string): string {
+  return sanitizeChatMarkdown(text).replace(/\[(\d+)\]/g, '[$1](cite:$1)')
+}
+
+function SourceCards({
+  sources,
+  showList,
+  openId,
+  onToggleList,
+  onOpen,
+}: {
+  sources: Source[]
+  showList: boolean
+  openId: string | null
+  onToggleList: () => void
+  onOpen: (chunkId: string | null) => void
+}) {
   if (!sources.length) return null
 
   return (
@@ -123,10 +158,7 @@ function SourceCards({ sources, defaultOpen = false }: { sources: Source[]; defa
       <button
         type="button"
         className={`sources-toggle${showList ? ' open' : ''}`}
-        onClick={() => {
-          setShowList((v) => !v)
-          if (showList) setOpen(null)
-        }}
+        onClick={onToggleList}
         aria-expanded={showList}
       >
         <span>
@@ -136,30 +168,29 @@ function SourceCards({ sources, defaultOpen = false }: { sources: Source[]; defa
       </button>
 
       {showList &&
-        sources.map((s) => {
+        sources.map((s, i) => {
           const key = s.chunk_id
-          const expanded = open === key
+          const expanded = openId === key
           return (
             <div
               key={key}
+              id={`source-card-${key}`}
               className={`source-card${expanded ? ' open' : ''}`}
-              onClick={() => setOpen(expanded ? null : key)}
+              onClick={() => onOpen(expanded ? null : key)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setOpen(expanded ? null : key)
+                  onOpen(expanded ? null : key)
                 }
               }}
             >
-              <div className="source-title">{s.filename}</div>
+              <div className="source-title">
+                <span className="source-index">[{i + 1}]</span> {s.filename}
+              </div>
               <div className="source-meta">
-                {s.page != null
-                  ? `Page ${s.page}`
-                  : s.heading
-                    ? `Section: ${s.heading}`
-                    : 'Location unknown'}
+                {sourcePlace(s)}
                 {s.module ? ` · ${s.module}` : ''}
                 {s.year ? ` · ${s.year}` : ''}
                 {s.score != null ? ` · ${Math.round(s.score * 100)}%` : ''}
@@ -170,6 +201,113 @@ function SourceCards({ sources, defaultOpen = false }: { sources: Source[]; defa
           )
         })}
     </div>
+  )
+}
+
+function AssistantReply({
+  content,
+  sources,
+  streaming,
+}: {
+  content: string
+  sources?: Source[]
+  streaming?: boolean
+}) {
+  const list = sources || []
+  const [showList, setShowList] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [popup, setPopup] = useState<number | null>(null)
+
+  function openCite(n: number) {
+    const s = list[n - 1]
+    if (!s) {
+      setPopup(null)
+      return
+    }
+    setPopup(n)
+    setShowList(true)
+    setOpenId(s.chunk_id)
+    window.setTimeout(() => {
+      document.getElementById(`source-card-${s.chunk_id}`)?.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth',
+      })
+    }, 50)
+  }
+
+  const cited = popup != null ? list[popup - 1] : null
+
+  return (
+    <>
+      <div className={`message-body md${streaming ? ' streaming' : ''}`}>
+        <Markdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children }) => {
+              const m = String(href || '').match(/^cite:(\d+)$/)
+              if (!m) {
+                return (
+                  <a href={href} target="_blank" rel="noreferrer">
+                    {children}
+                  </a>
+                )
+              }
+              const n = Number(m[1])
+              const s = list[n - 1]
+              return (
+                <button
+                  type="button"
+                  className={`cite-ref${popup === n ? ' active' : ''}`}
+                  title={s ? `${s.filename} · ${sourcePlace(s)}` : `Source ${n}`}
+                  onClick={() => openCite(n)}
+                >
+                  [{n}]
+                </button>
+              )
+            },
+          }}
+        >
+          {citeMarkdown(asChatText(content))}
+        </Markdown>
+        {cited ? (
+          <div className="cite-pop" role="dialog" aria-label={`Source ${popup}`}>
+            <div className="cite-pop-kicker">
+              [{popup}] {cited.year ? `${cited.year} · ` : ''}
+              {cited.module || 'Archive'}
+            </div>
+            <div className="cite-pop-title">{cited.filename}</div>
+            <div className="cite-pop-meta">{sourcePlace(cited)}</div>
+            {cited.text_preview ? <div className="cite-pop-preview">{cited.text_preview}</div> : null}
+            <button type="button" className="cite-pop-close" onClick={() => setPopup(null)}>
+              Close
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {list.length > 0 ? (
+        <SourceCards
+          sources={list}
+          showList={showList}
+          openId={openId}
+          onToggleList={() => {
+            setShowList((v) => !v)
+            if (showList) {
+              setOpenId(null)
+              setPopup(null)
+            }
+          }}
+          onOpen={(id) => {
+            setOpenId(id)
+            if (id) {
+              const n = list.findIndex((s) => s.chunk_id === id) + 1
+              setPopup(n > 0 ? n : null)
+            } else {
+              setPopup(null)
+            }
+          }}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -188,8 +326,10 @@ export default function ChatPage() {
   const [learnToast, setLearnToast] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
   const [modesExpanded, setModesExpanded] = useState(false)
+  const [hideTranscript, setHideTranscript] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToBottomRef = useRef(true)
   const lastScrollTopRef = useRef(0)
   const activeMode = MODES.find((m) => m.id === mode) ?? ASK_MODE
@@ -209,7 +349,7 @@ export default function ChatPage() {
               rows.map((r) => ({
                 id: String(r.id),
                 role: r.role as 'user' | 'assistant',
-                content: r.content,
+                content: asChatText(r.content),
                 sources: r.sources,
                 mode: r.mode || undefined,
                 saved: true,
@@ -279,6 +419,13 @@ export default function ChatPage() {
     lastScrollTopRef.current = el.scrollTop
   }, [messages, busy, liveSources.length, streaming])
 
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 44), 168)}px`
+  }, [input])
+
   async function ask(text: string, overrideMode?: ChatMode) {
     const trimmed = text.trim()
     if (!trimmed || busy) return
@@ -302,7 +449,10 @@ export default function ChatPage() {
     setError(null)
     setInput('')
     stickToBottomRef.current = true
-    const history = messages.map(({ role, content }) => ({ role, content }))
+    const history = messages.map(({ role, content }) => ({
+      role,
+      content: asChatText(content),
+    }))
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'user', content: trimmed }])
     setLiveSources([])
     // Always restart the brain viz on send so chat never feels like a blank box.
@@ -321,7 +471,8 @@ export default function ChatPage() {
         {
           onTrace: (ev) => brain.enqueue(ev),
           onToken: (text, replace) => {
-            if (!text) return
+            const chunk = asChatText(text)
+            if (!chunk) return
             if (!streamed) {
               streamed = true
               setStreaming(true)
@@ -330,7 +481,7 @@ export default function ChatPage() {
                 {
                   id: assistantId,
                   role: 'assistant',
-                  content: text,
+                  content: chunk,
                   mode: useMode,
                 },
               ])
@@ -339,7 +490,7 @@ export default function ChatPage() {
             setMessages((m) =>
               m.map((msg) =>
                 msg.id === assistantId
-                  ? { ...msg, content: replace ? text : `${msg.content}${text}` }
+                  ? { ...msg, content: replace ? chunk : joinChatText(asChatText(msg.content), chunk) }
                   : msg,
               ),
             )
@@ -365,7 +516,7 @@ export default function ChatPage() {
         const next = {
           id: assistantId,
           role: 'assistant' as const,
-          content: res.answer || '(See sources below.)',
+          content: asChatText(res.answer) || '(See sources below.)',
           sources: res.sources,
           mode: res.mode,
           saved: learnedPayload?.session_saved ?? Boolean(sid),
@@ -404,6 +555,7 @@ export default function ChatPage() {
     setError(null)
     setInput('')
     setLiveSources([])
+    setHideTranscript(false)
     brain.reset()
     try {
       const created = await api.createSession()
@@ -419,6 +571,7 @@ export default function ChatPage() {
   const showHero = messages.length === 0 && !busy
   const mapSearching = brain.searching || (busy && !brain.settled)
   const mapSettled = brain.settled && !brain.searching
+  const lastUserQuestion = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
 
   if (!ready) {
     return (
@@ -438,6 +591,15 @@ export default function ChatPage() {
           <h2>Chat</h2>
         </div>
         <div className="page-header-actions">
+          <button
+            className={`ghost-btn${hideTranscript ? ' active' : ''}`}
+            type="button"
+            title={hideTranscript ? 'Show the conversation again' : 'Hide messages so you can watch retrieval'}
+            aria-pressed={hideTranscript}
+            onClick={() => setHideTranscript((v) => !v)}
+          >
+            {hideTranscript ? 'Show chat' : 'Hide chat'}
+          </button>
           <button className="ghost-btn" type="button" onClick={() => void newChat()}>
             New chat
           </button>
@@ -452,7 +614,7 @@ export default function ChatPage() {
       ) : null}
 
       <div
-        className={`content chat-surface has-network has-ambient${mapSearching ? ' is-searching' : ''}${mapSettled ? ' is-settled' : ''}${mapKeep ? ' network-keep' : ' network-fade'}`}
+        className={`content chat-surface has-network has-ambient${mapSearching ? ' is-searching' : ''}${mapSettled ? ' is-settled' : ''}${mapKeep ? ' network-keep' : ' network-fade'}${hideTranscript ? ' transcript-hidden' : ''}`}
       >
         <div className="neural-backdrop-fill" aria-hidden={false}>
           <NeuralSearchViz
@@ -470,6 +632,13 @@ export default function ChatPage() {
             selectedSource={mapKeep ? brain.selectedSource : null}
           />
         </div>
+
+        {hideTranscript && lastUserQuestion ? (
+          <div className="last-ask-chip" role="status">
+            <span className="last-ask-kicker">You asked</span>
+            <p>{asChatText(lastUserQuestion)}</p>
+          </div>
+        ) : null}
 
         <div className="chat-foreground" ref={chatScrollRef} onScroll={onChatScroll}>
           {showHero && (
@@ -530,11 +699,13 @@ export default function ChatPage() {
                   ) : null}
                 </div>
                 {msg.role === 'assistant' ? (
-                  <div className={`message-body md${streaming && msg.id === messages[messages.length - 1]?.id ? ' streaming' : ''}`}>
-                    <Markdown>{msg.content}</Markdown>
-                  </div>
+                  <AssistantReply
+                    content={msg.content}
+                    sources={msg.sources}
+                    streaming={streaming && msg.id === messages[messages.length - 1]?.id}
+                  />
                 ) : (
-                  <div className="message-body">{msg.content}</div>
+                  <div className="message-body">{asChatText(msg.content)}</div>
                 )}
                 {msg.learned && msg.learned.length > 0 ? (
                   <div className="learned-chips">
@@ -544,9 +715,6 @@ export default function ChatPage() {
                       </div>
                     ))}
                   </div>
-                ) : null}
-                {msg.sources && msg.sources.length > 0 ? (
-                  <SourceCards sources={msg.sources} defaultOpen={false} />
                 ) : null}
               </div>
               )
@@ -568,85 +736,104 @@ export default function ChatPage() {
             <div ref={bottomRef} />
           </div>
         </div>
-      </div>
 
-      <form className="composer" onSubmit={onSubmit}>
-        <div className="composer-controls">
-          <button
-            type="button"
-            title={ASK_MODE.hint}
-            className={`mode-pill${mode === 'ask' ? ' active' : ''}`}
-            onClick={() => {
-              setMode('ask')
-              setModesExpanded(false)
-            }}
-          >
-            Ask
-          </button>
-          {!modesExpanded ? (
-            <>
-              {mode !== 'ask' ? (
+        <form className="composer" onSubmit={onSubmit}>
+          <div className="composer-controls">
+            <button
+              type="button"
+              title={ASK_MODE.hint}
+              className={`mode-pill${mode === 'ask' ? ' active' : ''}`}
+              onClick={() => {
+                setMode('ask')
+                setModesExpanded(false)
+              }}
+            >
+              Ask
+            </button>
+            {!modesExpanded ? (
+              <>
+                {mode !== 'ask' ? (
+                  <button
+                    type="button"
+                    title={activeMode.hint}
+                    className="mode-pill active"
+                    onClick={() => setModesExpanded(true)}
+                  >
+                    {activeMode.label}
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  title={activeMode.hint}
-                  className="mode-pill active"
+                  className="mode-pill mode-ellipsis"
+                  title="More modes"
+                  aria-expanded={false}
                   onClick={() => setModesExpanded(true)}
                 >
-                  {activeMode.label}
+                  …
                 </button>
-              ) : null}
-              <button
-                type="button"
-                className="mode-pill mode-ellipsis"
-                title="More modes"
-                aria-expanded={false}
-                onClick={() => setModesExpanded(true)}
-              >
-                …
-              </button>
-            </>
-          ) : (
-            <>
-              {MORE_MODES.map((m) => (
+              </>
+            ) : (
+              <>
+                {MORE_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    title={m.hint}
+                    className={`mode-pill${mode === m.id ? ' active' : ''}`}
+                    onClick={() => setMode(m.id)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
                 <button
-                  key={m.id}
                   type="button"
-                  title={m.hint}
-                  className={`mode-pill${mode === m.id ? ' active' : ''}`}
-                  onClick={() => setMode(m.id)}
+                  className="mode-pill mode-ellipsis"
+                  title="Hide modes"
+                  aria-expanded={true}
+                  onClick={() => setModesExpanded(false)}
                 >
-                  {m.label}
+                  …
                 </button>
-              ))}
-              <button
-                type="button"
-                className="mode-pill mode-ellipsis"
-                title="Hide modes"
-                aria-expanded={true}
-                onClick={() => setModesExpanded(false)}
-              >
-                …
-              </button>
-            </>
-          )}
-        </div>
-        <div className="composer-row">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={activeMode.placeholder}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void ask(input)
-              }
-            }}
-          />
-          <button className="primary-btn" type="submit" disabled={busy || !input.trim()}>
-            {busy ? 'Working…' : 'Send'}
-          </button>
-        </div>
-      </form>
+              </>
+            )}
+          </div>
+          <div className="composer-shell">
+            <textarea
+              ref={inputRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={activeMode.placeholder}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void ask(input)
+                }
+              }}
+            />
+            <button
+              className="composer-send"
+              type="submit"
+              disabled={busy || !input.trim()}
+              aria-label={busy ? 'Working' : 'Send'}
+            >
+              {busy ? (
+                <span className="composer-send-wait" />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+                  <path
+                    d="M3.2 9.1h11.2M9.6 4.4 14.4 9.1 9.6 13.8"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </>
   )
 }

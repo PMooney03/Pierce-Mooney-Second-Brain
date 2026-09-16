@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -11,6 +12,44 @@ import httpx
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.S | re.I)
+
+
+def _assistant_text(message: dict[str, Any], *, allow_thinking: bool = False) -> str:
+    """Visible reply text from Ollama (gpt-oss may put the answer in thinking).
+
+    Do not strip whitespace — stream chunks are often a single space or newline.
+    """
+    raw = message.get("content")
+    if isinstance(raw, list):
+        bits: list[str] = []
+        for item in raw:
+            if isinstance(item, str):
+                bits.append(item)
+            elif isinstance(item, dict):
+                piece = item.get("text") or item.get("content") or ""
+                if isinstance(piece, str):
+                    bits.append(piece)
+        raw = "".join(bits)
+    if isinstance(raw, str) and raw != "":
+        return _THINK_BLOCK_RE.sub("", raw)
+    if allow_thinking:
+        think = message.get("thinking") or message.get("reasoning") or ""
+        if isinstance(think, str) and think:
+            return _THINK_BLOCK_RE.sub("", think)
+    return ""
+
+
+def _stream_delta(previous: str, incoming: str) -> tuple[str, str]:
+    """Return (new_text, updated_previous) for snapshot-or-delta streams."""
+    if not incoming:
+        return "", previous
+    if previous and incoming.startswith(previous):
+        return incoming[len(previous) :], incoming
+    if incoming == previous:
+        return "", previous
+    return incoming, previous + incoming
 
 
 class OllamaError(RuntimeError):
@@ -163,16 +202,17 @@ class OllamaClient:
                         "model": self.chat_model,
                         "messages": messages,
                         "stream": False,
-                        "options": {"temperature": temperature},
+                        "think": False,
+                        "options": {"temperature": temperature, "num_predict": 1536},
                     },
                 )
                 r.raise_for_status()
                 data = r.json()
                 message = data.get("message") or {}
-                content = message.get("content")
+                content = _assistant_text(message, allow_thinking=True)
                 if not content:
                     raise OllamaError("Empty response from Ollama chat")
-                return str(content)
+                return content
         except httpx.HTTPError as exc:
             raise OllamaError(
                 f"Chat failed with model '{self.chat_model}': {exc}. "
@@ -195,10 +235,15 @@ class OllamaClient:
                         "model": self.chat_model,
                         "messages": messages,
                         "stream": True,
-                        "options": {"temperature": temperature},
+                        "think": False,
+                        "options": {"temperature": temperature, "num_predict": 1536},
                     },
                 ) as r:
                     r.raise_for_status()
+                    yielded = False
+                    seen_content = ""
+                    seen_thinking = ""
+                    last_message: dict[str, Any] = {}
                     for line in r.iter_lines():
                         if not line:
                             continue
@@ -207,10 +252,25 @@ class OllamaClient:
                         except json.JSONDecodeError:
                             continue
                         message = data.get("message") or {}
-                        content = message.get("content")
-                        if content:
-                            yield str(content)
+                        if isinstance(message, dict):
+                            last_message = message
+                        content = _assistant_text(message, allow_thinking=False)
+                        delta, seen_content = _stream_delta(seen_content, content)
+                        if delta:
+                            yielded = True
+                            yield delta
+                        think = message.get("thinking") or message.get("reasoning") or ""
+                        if isinstance(think, str) and think:
+                            _, seen_thinking = _stream_delta(seen_thinking, think)
                         if data.get("done"):
+                            if not yielded:
+                                leftover = _assistant_text(last_message, allow_thinking=True)
+                                if leftover:
+                                    piece, _ = _stream_delta("", leftover)
+                                    if piece:
+                                        yield piece
+                                elif seen_thinking:
+                                    yield seen_thinking
                             break
         except httpx.HTTPError as exc:
             raise OllamaError(

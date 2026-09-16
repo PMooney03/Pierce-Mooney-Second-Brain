@@ -32,9 +32,15 @@ MODE_RETRIEVAL: dict[ChatMode, dict] = {
 
 _EXPERIENCE_RE = re.compile(
     r"("
-    r"\b(?:programming\s+)?languages?\b.*\b(?:appear|know|have|use|work|list|my)\b|"
+    r"\b(?:programming\s+)?languages?\b.*\b(?:appear|know|have|use|work|list|my|done|learned|studied)\b|"
+    r"\b(?:coding|programming)\s+languages?\b|"
+    r"\blanguages?\b.*\b(?:in|at|from)\s+college\b|"
+    r"\bcollege\b.*\b(?:coding|programming|languages?)\b|"
+    r"\btell\s+me\s+about\b.*\b(?:coding|programming|languages?|college)\b|"
     r"\b(?:what|which)\s+(?:programming\s+)?(?:languages?|technologies|skills?|tools?)\b|"
     r"\b(?:what|which)\s+experience\b|"
+    r"\bwhat(?:'s| is)\s+my\s+.+\s+experience\b|"
+    r"\bmy\s+\w+(?:\s+\w+)?\s+experience\b|"
     r"\bexperience\s+(?:do\s+i\s+have|have\s+i|with|in)\b|"
     r"\b(?:my|your)\s+(?:skills?|technologies|tech\s+stack|programming|coding)\b|"
     r"\btech\s+stack\b|"
@@ -68,8 +74,8 @@ _ACADEMIC_HINT_RE = re.compile(
     r"year\s+one|year\s+two|year\s+three|year\s+four|"
     r"freshman|sophomore|junior\s+year|senior\s+year|"
     r"my\s+college|college\s+(?:files|materials|work|years?|archive)|"
-    r"what\s+did\s+i\s+(?:study|learn|do)|tell\s+me\s+about\s+my|"
-    r"tell\s+me\s+about\s+a\s+project|"
+    r"\bin\s+college\b|\bat\s+college\b|\bfrom\s+college\b|"
+    r"what\s+did\s+i\s+(?:study|learn|do)|tell\s+me\s+about\s+(?:my|the|a)\b|"
     r"python|docker|kubernetes|linux|nis2|java\b|typescript|javascript|"
     r"powershell|\.ps1\b|ansible|vagrant|"
     r"my\s+projects?|(?:in|from|across|on)\s+my\s+projects?|"
@@ -111,6 +117,37 @@ _BROKEN_LLM_RE = re.compile(
     re.I,
 )
 
+_PLANNING_RE = re.compile(
+    r"we need to answer|we must (use|not)|the instruction|"
+    r"put a space between every word|never concatenate words|"
+    r"none of these mention|write the answer in markdown now|"
+    r"we should (not )?mention|because it'?s a personal statement",
+    re.I,
+)
+
+_ROUTING_MEMORY_RE = re.compile(r"useful archive areas were|from prior chat about", re.I)
+
+_OPEN_QUERY_RE = re.compile(
+    r"\b(tell me about|what is|what's|who is|who's|what are|where is|where's|when is|when's)\b",
+    re.I,
+)
+
+_ARCHIVE_STOPWORDS = frozenset({
+    "the", "and", "for", "about", "what", "tell", "how", "when", "where", "who",
+    "my", "your", "have", "has", "was", "were", "are", "from", "this", "that",
+    "with", "did", "does", "can", "could", "would", "should", "please",
+    "is", "are", "was", "were", "been", "being", "any", "some", "much",
+})
+
+# Common academic words that match too many unrelated lecture PDFs.
+_VAGUE_QUERY_WORDS = frozenset({
+    "electric", "electrical", "electricity", "computer", "computing", "data",
+    "system", "systems", "network", "networking", "security", "digital",
+    "software", "hardware", "information", "technology", "technical",
+    "introduction", "intro", "basic", "basics", "fundamentals", "overview",
+    "lecture", "slides", "notes", "lab", "labs", "assignment", "module",
+})
+
 TECH_TERMS = [
     "Java",
     "Python",
@@ -123,6 +160,7 @@ TECH_TERMS = [
     "CSS",
     "C++",
     "Docker",
+    "Ansible",
     "Kubernetes",
     "Git",
     "Linux",
@@ -182,6 +220,17 @@ _SMALLTALK_RE = re.compile(
 )
 
 
+def _looks_like_planning(text: str) -> bool:
+    """True when gpt-oss dumped prompt-reasoning instead of an answer."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _PLANNING_RE.search(t):
+        return True
+    low = t.lower()
+    return low.count("we should") >= 3 or low.count("we must") >= 3
+
+
 def _is_smalltalk(message: str) -> bool:
     text = (message or "").strip()
     if not text:
@@ -206,7 +255,97 @@ def _year_focus(message: str) -> str | None:
 def _is_experience_question(message: str) -> bool:
     if _META_SCOPE_RE.search(message):
         return False
-    return bool(_EXPERIENCE_RE.search(message))
+    if _EXPERIENCE_RE.search(message):
+        return True
+    if re.search(r"\bexperience\b", message or "", re.I) and _tech_focus_terms(message):
+        return True
+    return False
+
+
+def _tech_focus_terms(message: str) -> list[str]:
+    """Technology names explicitly mentioned in the question."""
+    text = message or ""
+    found: list[str] = []
+    for term in TECH_TERMS:
+        pattern = r"(?<![A-Za-z0-9_])" + re.escape(term) + r"(?![A-Za-z0-9_])"
+        if re.search(pattern, text, flags=re.I):
+            found.append(term)
+    return found
+
+
+def _has_college_intent(message: str) -> bool:
+    return bool(
+        _ACADEMIC_HINT_RE.search(message)
+        or _EXPERIENCE_RE.search(message)
+        or _year_focus(message)
+        or _tech_focus_terms(message)
+    )
+
+
+def _looks_like_open_domain_question(message: str) -> bool:
+    """General knowledge / real-world — not the student's college archive."""
+    if _has_college_intent(message):
+        return False
+    if _OPEN_QUERY_RE.search(message or ""):
+        return True
+    if re.search(r"\b(festival|concert|gig|tickets?|movie|film|album|celebrity)\b", message or "", re.I):
+        return True
+    return False
+
+
+def _distinctive_query_tokens(message: str) -> list[str]:
+    tokens = re.findall(r"[a-z0-9]{3,}", (message or "").lower())
+    return [t for t in tokens if t not in _ARCHIVE_STOPWORDS and t not in _VAGUE_QUERY_WORDS]
+
+
+def _archive_hits_relevant(message: str, chunks: list[ChunkRecord]) -> bool:
+    """True when retrieved chunks actually mention the query's distinctive terms."""
+    distinct = _distinctive_query_tokens(message)
+    if not distinct:
+        return True
+    blob = ""
+    for c in chunks[:10]:
+        blob += f" {c.text} {c.filename} {c.filepath} {c.module or ''} {c.heading or ''}".lower()
+    matched = sum(1 for t in distinct if t in blob)
+    if len(distinct) == 1:
+        return matched >= 1
+    return matched >= len(distinct)
+
+
+def _answer_needs_evidence_fallback(
+    answer: str, chunks: list[ChunkRecord], *, question: str = ""
+) -> bool:
+    """True only for routing-memory garbage — never used to dump chunk previews."""
+    if not chunks:
+        return False
+    if question and not _archive_hits_relevant(question, chunks):
+        return False
+    return bool(_ROUTING_MEMORY_RE.search((answer or "").strip()))
+
+
+def _archive_lead_in(
+    question: str,
+    chunks: list[ChunkRecord],
+    inventory_note: str | None = None,
+) -> str:
+    """Readable RAG lead-in when the chat model returns no text."""
+    lines: list[str] = []
+    q = (question or "").strip()
+    if q:
+        lines.append(f"From your indexed files, this is what matches **{q[:120]}**:")
+        lines.append("")
+    if inventory_note and inventory_note.strip():
+        lines.append(inventory_note.strip())
+        lines.append("")
+    if chunks:
+        lines.append("## From your files")
+        for i, c in enumerate(chunks[:8], start=1):
+            loc = ", ".join(x for x in [c.year, c.module] if x) or (c.heading or "section unknown")
+            preview = (c.text or "").strip().replace("\n", " ")
+            if len(preview) > 220:
+                preview = preview[:217] + "…"
+            lines.append(f"- [{i}] **{c.filename}** ({loc}) — {preview}")
+    return "\n".join(lines).strip()
 
 
 def _is_followup(message: str) -> bool:
@@ -231,6 +370,8 @@ def _wants_archive(message: str, history: list[ChatTurn], mode: ChatMode) -> boo
         return True
     if _META_SCOPE_RE.search(message):
         return False
+    if _is_smalltalk(message):
+        return False
     # Utility / everyday tools — don't force college RAG
     if is_weather_query(message):
         return False
@@ -246,19 +387,16 @@ def _wants_archive(message: str, history: list[ChatTurn], mode: ChatMode) -> boo
         or wants_memory_list(message)
     ):
         return False
-    if _is_experience_question(message) or _ACADEMIC_HINT_RE.search(message):
+    if _is_followup(message) and not _prior_was_academic(history):
+        # Vague follow-up after small talk — stay conversational
+        return False
+    # Tools/topics that live in the archive should always retrieve first.
+    if _has_college_intent(message):
         return True
-    if _is_followup(message) and _prior_was_academic(history):
-        return True
-    # First-person + project/tech wording that missed the hint list
-    if re.search(
-        r"\b(?:i\s+use|i\s+used|i'?ve\s+used|my\s+\w+)\b.*\b(?:project|lab|module|repo)\b|"
-        r"\b(?:project|lab|module|repo)\b.*\b(?:i\s+use|i\s+used|i'?ve\s+used)\b",
-        message,
-        re.I,
-    ):
-        return True
-    return False
+    if _looks_like_open_domain_question(message):
+        return False
+    # Ask mode default: search archive first; answer from what's useful.
+    return True
 
 
 def _should_web_lookup(message: str, mode: ChatMode, *, enabled: bool) -> bool:
@@ -340,7 +478,7 @@ def _prefer_year_chunks(chunks: list[ChunkRecord], year: str | None, limit: int)
     if not year:
         return chunks[:limit]
     matched = [c for c in chunks if (c.year or "") == year or year.lower() in (c.filepath or "").lower()]
-    if len(matched) >= max(3, limit // 2):
+    if matched:
         rest = [c for c in chunks if c not in matched]
         return (matched + rest)[:limit]
     return chunks[:limit]
@@ -479,102 +617,113 @@ class ChatService:
             include_memory=include_memory,
         )
 
-    def _collect_tech(self) -> dict[str, list[ChunkRecord]]:
+    def _iter_converse_answer(
+        self,
+        message: str,
+        prior: list[ChatTurn],
+        session_id: str | None,
+        mode: ChatMode,
+        *,
+        status: str = "Checking tools…",
+    ) -> Iterator[dict[str, Any]]:
+        yield {"event": "status", "message": status, "node": "reason"}
+        tools = self._tool_bundle(message, mode)
+        ddg_msg = _duckduckgo_status(tools.sources, with_archive=False)
+        if ddg_msg:
+            yield {"event": "status", "message": ddg_msg, "node": "web"}
+            yield {
+                "event": "retrieval",
+                "kind": "web",
+                "provider": "DuckDuckGo",
+                "message": ddg_msg,
+            }
+        elif tools.sources:
+            yield {"event": "status", "message": "Gathering live context…", "node": "web"}
+        for s in tools.sources:
+            node = (
+                "weather"
+                if (s.heading or "").lower() == "open-meteo" or "weather" in (s.filename or "").lower()
+                else "web"
+            )
+            if (s.module or "") == "Tools":
+                node = "calc"
+            if _citation_is_duckduckgo(s):
+                node = "web"
+            yield {"event": "file", "source": _citation_payload(s), "node": node}
+        if tools.direct_answer:
+            sources = [_citation_payload(s) for s in tools.sources]
+            retrieval = _retrieval_kind(used_archive=False, sources=sources)
+            learned = self._persist_turn(
+                session_id,
+                message=message,
+                answer=tools.direct_answer,
+                mode=mode,
+                sources=sources,
+                retrieval=retrieval,
+            )
+            yield {
+                "event": "answer",
+                "answer": tools.direct_answer,
+                "sources": sources,
+                "mode": mode.value,
+                "model": "tools",
+                "retrieval": retrieval,
+            }
+            yield learned
+            yield {"event": "done"}
+            return
+        yield {"event": "status", "message": "Composing answer…", "node": "reason"}
+        parts: list[str] = []
+        for token in self.generator.iter_converse(
+            message,
+            history=prior,
+            web_note=tools.note or None,
+        ):
+            if not token:
+                continue
+            parts.append(token)
+            yield {"event": "token", "text": token}
+        answer_text = "".join(parts).strip()
+        if not answer_text or len(answer_text) < 8:
+            answer_text = (
+                "Hey — I'm here. We can keep chatting, dig into your college materials, "
+                "or look up a quick fact when you need context."
+            )
+            yield {"event": "token", "text": answer_text}
+        sources = [_citation_payload(s) for s in tools.sources]
+        retrieval = _retrieval_kind(used_archive=False, sources=sources)
+        learned = self._persist_turn(
+            session_id,
+            message=message,
+            answer=answer_text,
+            mode=mode,
+            sources=sources,
+            retrieval=retrieval,
+        )
+        yield {
+            "event": "answer",
+            "answer": answer_text,
+            "sources": sources,
+            "mode": mode.value,
+            "model": self.generator.ollama.chat_model,
+            "retrieval": retrieval,
+        }
+        yield learned
+        yield {"event": "done"}
+
+    def _collect_tech(
+        self,
+        terms: list[str] | None = None,
+        *,
+        per_term: int = 3,
+    ) -> dict[str, list[ChunkRecord]]:
         by_term: dict[str, list[ChunkRecord]] = defaultdict(list)
-        for term in TECH_TERMS:
-            results = self.search.hybrid.keyword.search(term, limit=3)
+        for term in terms or TECH_TERMS:
+            results = self.search.hybrid.keyword.search(term, limit=per_term)
             for chunk, _score in results:
                 if _term_matched(term, chunk):
                     by_term[term].append(chunk)
         return by_term
-
-    def _format_tech_answer(
-        self,
-        by_term: dict[str, list[ChunkRecord]],
-        *,
-        interview: bool = False,
-    ) -> tuple[str, list[ChunkRecord]]:
-        if not by_term:
-            return (
-                "I could not find clear programming-language or technology mentions in the indexed files yet. "
-                "Finish ingestion, or search for a specific tool like Docker or Python.",
-                [],
-            )
-
-        # Stable-ish order: languages first, then tools
-        language_like = {
-            "Java",
-            "Python",
-            "PHP",
-            "Kotlin",
-            "JavaScript",
-            "TypeScript",
-            "SQL",
-            "HTML",
-            "CSS",
-            "C++",
-            "Bash",
-        }
-        langs = [(t, c) for t, c in by_term.items() if t in language_like]
-        tools = [(t, c) for t, c in by_term.items() if t not in language_like]
-
-        # Build citation index across unique chunks
-        ordered_chunks: list[ChunkRecord] = []
-        seen: set[str] = set()
-        cite_for: dict[str, list[int]] = defaultdict(list)
-
-        def add_chunk(term: str, chunk: ChunkRecord) -> None:
-            if chunk.id not in seen:
-                seen.add(chunk.id)
-                ordered_chunks.append(chunk)
-                idx = len(ordered_chunks)
-            else:
-                idx = next(i for i, c in enumerate(ordered_chunks, start=1) if c.id == chunk.id)
-            if idx not in cite_for[term]:
-                cite_for[term].append(idx)
-
-        for term, chunks in langs + tools:
-            for chunk in chunks[:2]:
-                add_chunk(term, chunk)
-
-        def section(title: str, items: list[tuple[str, list[ChunkRecord]]]) -> list[str]:
-            if not items:
-                return []
-            lines = [f"## {title}"]
-            for term, chunks in items:
-                examples = []
-                for c in chunks[:2]:
-                    bit = ", ".join(x for x in [c.year, c.module] if x) or c.filepath
-                    examples.append(f"{c.filename} ({bit})")
-                cites = "".join(f"[{i}]" for i in cite_for.get(term, [])[:3])
-                lines.append(f"- **{term}** {cites} — evidence in: " + "; ".join(examples))
-            return lines
-
-        if interview:
-            lines = [
-                "## Summary",
-                "Across my college materials, I have repeated evidence of working with these languages and technologies:",
-                "",
-            ]
-        else:
-            lines = [
-                "## Summary",
-                "Based on keyword evidence in your indexed college files, these languages and technologies appear in your work:",
-                "",
-            ]
-
-        lines.extend(section("Languages", langs))
-        lines.append("")
-        lines.extend(section("Tools & platforms", tools))
-        lines.extend(
-            [
-                "",
-                "## Note",
-                "This list is built from exact matches in your documents (labs, lectures, assignments). "
-                "It shows exposure/evidence in the archive — not a claim about mastery level.",
-            ]
-        )
-        return "\n".join(lines).strip(), ordered_chunks
 
     def chat(
         self,
@@ -683,86 +832,7 @@ class ChatService:
 
         # Open conversation / tools — optional web/weather/calc/memory, no college RAG.
         if mode == ChatMode.ASK and not _wants_archive(message, prior, mode):
-            yield {"event": "status", "message": "Checking tools…", "node": "reason"}
-            tools = self._tool_bundle(message, mode)
-            ddg_msg = _duckduckgo_status(tools.sources, with_archive=False)
-            if ddg_msg:
-                yield {"event": "status", "message": ddg_msg, "node": "web"}
-                yield {
-                    "event": "retrieval",
-                    "kind": "web",
-                    "provider": "DuckDuckGo",
-                    "message": ddg_msg,
-                }
-            elif tools.sources:
-                yield {"event": "status", "message": "Gathering live context…", "node": "web"}
-            for s in tools.sources:
-                node = "weather" if (s.heading or "").lower() == "open-meteo" or "weather" in (s.filename or "").lower() else "web"
-                if (s.module or "") == "Tools":
-                    node = "calc"
-                if _citation_is_duckduckgo(s):
-                    node = "web"
-                yield {"event": "file", "source": _citation_payload(s), "node": node}
-            if tools.direct_answer:
-                sources = [_citation_payload(s) for s in tools.sources]
-                retrieval = _retrieval_kind(used_archive=False, sources=sources)
-                learned = self._persist_turn(
-                    session_id,
-                    message=message,
-                    answer=tools.direct_answer,
-                    mode=mode,
-                    sources=sources,
-                    retrieval=retrieval,
-                )
-                yield {
-                    "event": "answer",
-                    "answer": tools.direct_answer,
-                    "sources": sources,
-                    "mode": mode.value,
-                    "model": "tools",
-                    "retrieval": retrieval,
-                }
-                yield learned
-                yield {"event": "done"}
-                return
-            yield {"event": "status", "message": "Composing answer…", "node": "reason"}
-            parts: list[str] = []
-            for token in self.generator.iter_converse(
-                message,
-                history=prior,
-                web_note=tools.note or None,
-            ):
-                if not token:
-                    continue
-                parts.append(token)
-                yield {"event": "token", "text": token}
-            answer_text = "".join(parts).strip()
-            if not answer_text or len(answer_text) < 8:
-                answer_text = (
-                    "Hey — I'm here. We can keep chatting, dig into your college materials, "
-                    "or look up a quick fact when you need context."
-                )
-                yield {"event": "token", "text": answer_text}
-            sources = [_citation_payload(s) for s in tools.sources]
-            retrieval = _retrieval_kind(used_archive=False, sources=sources)
-            learned = self._persist_turn(
-                session_id,
-                message=message,
-                answer=answer_text,
-                mode=mode,
-                sources=sources,
-                retrieval=retrieval,
-            )
-            yield {
-                "event": "answer",
-                "answer": answer_text,
-                "sources": sources,
-                "mode": mode.value,
-                "model": self.generator.ollama.chat_model,
-                "retrieval": retrieval,
-            }
-            yield learned
-            yield {"event": "done"}
+            yield from self._iter_converse_answer(message, prior, session_id, mode)
             return
 
         cfg = MODE_RETRIEVAL.get(mode, MODE_RETRIEVAL[ChatMode.ASK])
@@ -770,65 +840,48 @@ class ChatService:
         k = max(1, int(base_k * float(cfg["top_k_factor"])))
         retrieve_k = min(max(k * 2, 12), 28)
 
-        experience = _is_experience_question(message) or mode == ChatMode.INTERVIEW
-
-        if experience and mode in {ChatMode.ASK, ChatMode.RECALL, ChatMode.INTERVIEW, ChatMode.CONNECT}:
-            yield from trace.iter_pre_search_trace(
-                self.db,
-                query=message,
-                mode=mode,
-                year_focus=None,
-                project_focus=True,
-                expand_modules=False,
-            )
-            yield {"event": "status", "message": "Scanning technology inventory…", "node": "archive"}
-            by_term = self._collect_tech()
-            answer, chunks = self._format_tech_answer(
-                by_term, interview=(mode == ChatMode.INTERVIEW)
-            )
-            if mode == ChatMode.INTERVIEW and by_term:
-                answer = answer.replace(
-                    "Based on keyword evidence in your indexed college files, these languages and technologies appear in your work:",
-                    "Across my college materials, I can evidence experience with these languages and technologies:",
-                )
-                answer = answer.replace("your indexed college files", "my college materials")
-                answer = answer.replace("your documents", "my documents")
-                answer = answer.replace("your work", "my work")
-            cites = chunks_to_citations(chunks, preview_chars=420)
-            for c in cites[: trace.MAX_MATCH_EVENTS]:
-                yield trace.emit_match_from_citation(c)
-            yield from _emit_files(cites)
-            yield trace.emit_stats(
-                candidates=len(cites),
-                strong_matches=min(len(cites), 8),
-                message=f"{len(cites)} technology evidence hits…",
-            )
-            yield trace.emit_sources_selected([c.chunk_id for c in cites])
-            sources = [_citation_payload(s) for s in cites]
-            learned = self._persist_turn(
-                session_id,
-                message=message,
-                answer=answer,
-                mode=mode,
-                sources=sources,
-                retrieval="archive",
-            )
+        extra_hits: list[SearchHit] = []
+        if _is_experience_question(message) and mode in {
+            ChatMode.ASK,
+            ChatMode.RECALL,
+            ChatMode.INTERVIEW,
+            ChatMode.CONNECT,
+        }:
             yield {
-                "event": "answer",
-                "answer": answer,
-                "sources": sources,
-                "mode": mode.value,
-                "model": "inventory+fts5",
-                "retrieval": "archive",
+                "event": "status",
+                "message": "Scanning technology mentions in your archive…",
+                "node": "archive",
             }
-            yield learned
-            yield trace.emit_trace_complete()
-            yield {"event": "done"}
-            return
+            focus_terms = _tech_focus_terms(message)
+            if focus_terms and (
+                re.search(r"\bexperience\b", message, re.I)
+                or re.search(r"\bmy\s+", message, re.I)
+            ):
+                by_term = self._collect_tech(focus_terms, per_term=5)
+            else:
+                by_term = self._collect_tech()
+            seen_tech: set[str] = set()
+            for term_chunks in by_term.values():
+                for chunk in term_chunks:
+                    if chunk.id in seen_tech:
+                        continue
+                    seen_tech.add(chunk.id)
+                    extra_hits.append(
+                        SearchHit(
+                            chunk=chunk,
+                            semantic_score=None,
+                            keyword_score=chunk.score,
+                            hybrid_score=chunk.score or 0.05,
+                        )
+                    )
 
         year = _year_focus(message)
         project_focus = bool(
-            re.search(r"\b(project|fyp|final\s+year\s+project|docker|infrastructure)\b", message, re.I)
+            re.search(
+                r"\b(project|fyp|final\s+year\s+project|docker|ansible|infrastructure)\b",
+                message,
+                re.I,
+            )
         ) or mode == ChatMode.PROJECT
         expand_modules = bool(year and _is_year_overview(message))
 
@@ -860,6 +913,8 @@ class ChatService:
             top_k=retrieve_k,
             prefer_keyword=bool(cfg["prefer_keyword"]),
         )
+        if extra_hits:
+            hits = extra_hits + hits
 
         if year:
             matched_hits = [
@@ -868,7 +923,7 @@ class ChatService:
                 if (h.chunk.year or "") == year
                 or year.lower() in (h.chunk.filepath or "").lower()
             ]
-            if len(matched_hits) >= max(3, k // 2):
+            if matched_hits:
                 rest = [h for h in hits if h not in matched_hits]
                 hits = (matched_hits + rest)[:retrieve_k]
 
@@ -907,9 +962,25 @@ class ChatService:
         yield from trace.iter_hit_trace(hits, limit=trace.MAX_MATCH_EVENTS)
 
         chunks = [h.chunk for h in hits]
+        chunks = _prefer_year_chunks(chunks, year, limit=max(k, 14) if year else k)
         for h in hits:
             h.chunk.score = h.hybrid_score or h.chunk.score
             h.chunk.score_source = trace.match_type_for_hit(h)
+
+        if (
+            mode == ChatMode.ASK
+            and chunks
+            and not _has_college_intent(message)
+            and not _archive_hits_relevant(message, chunks)
+        ):
+            yield from self._iter_converse_answer(
+                message,
+                prior,
+                session_id,
+                mode,
+                status="No matching college material — answering from general knowledge…",
+            )
+            return
 
         cites = chunks_to_citations(chunks, preview_chars=500 if mode == ChatMode.SEARCH else 420)
 
@@ -982,24 +1053,85 @@ class ChatService:
             inventory_note=inventory_note,
             web_note=tools.note or None,
         ):
-            if not token:
+            if not isinstance(token, str) or not token:
                 continue
             parts.append(token)
             yield {"event": "token", "text": token}
         answer_text = "".join(parts).strip()
-        if _BROKEN_LLM_RE.search(answer_text or ""):
-            bullets = []
-            for i, c in enumerate(chunks[:8], start=1):
-                loc = f"p.{c.page_start}" if c.page_start else (c.heading or "section unknown")
-                bullets.append(
-                    f"- [{i}] **{c.filename}** ({c.year or '?'}, {c.module or loc})"
+        if _looks_like_planning(answer_text):
+            yield {
+                "event": "status",
+                "message": "Retrying — the model started planning instead of answering…",
+                "node": "reason",
+            }
+            retry_bits: list[str] = []
+            first = True
+            try:
+                for token in self.generator.iter_converse(
+                    message,
+                    history=[],
+                    web_note=tools.note or None,
+                ):
+                    if not isinstance(token, str) or not token:
+                        continue
+                    retry_bits.append(token)
+                    if first:
+                        yield {"event": "token", "text": token, "replace": True}
+                        first = False
+                    else:
+                        yield {"event": "token", "text": token}
+            except Exception:  # noqa: BLE001
+                retry_bits = []
+            retry = "".join(retry_bits).strip()
+            if retry and not _looks_like_planning(retry):
+                answer_text = retry
+            else:
+                answer_text = ""
+        if not answer_text:
+            lead = _archive_lead_in(message, chunks, inventory_note)
+            fill_bits: list[str] = []
+            if lead:
+                yield {"event": "token", "text": lead, "replace": True}
+            try:
+                for token in self.generator.iter_converse(
+                    message,
+                    history=[],
+                    web_note=(
+                        "ARCHIVE HITS (use these first, then add missing explanation):\n"
+                        + (lead[:2800] if lead else "(none)")
+                    ),
+                ):
+                    if not isinstance(token, str) or not token:
+                        continue
+                    fill_bits.append(token)
+                    yield {"event": "token", "text": token if not lead else (
+                        f"\n\n## Beyond your files\n\n{token}" if len(fill_bits) == 1 else token
+                    )}
+            except Exception:  # noqa: BLE001
+                fill_bits = []
+            fill = "".join(fill_bits).strip()
+            if lead and fill:
+                answer_text = f"{lead}\n\n## Beyond your files\n\n{fill}"
+            else:
+                answer_text = lead or fill
+            if not answer_text:
+                answer_text = (
+                    "I searched your archive but could not compose a reply. "
+                    "Try a more specific module or file name."
                 )
-            answer_text = (
-                "I retrieved related material, but the local model produced an unusable reply. "
-                "Here are the strongest evidence hits — try **Recall** mode or a more specific question:\n\n"
-                + "\n".join(bullets)
-            )
-            yield {"event": "token", "text": answer_text, "replace": True}
+                yield {"event": "token", "text": answer_text, "replace": True}
+        if _BROKEN_LLM_RE.search(answer_text or "") or _ROUTING_MEMORY_RE.search(answer_text or ""):
+            # Keep retrieval + let a normal generate-style reply through on retry via converse
+            # only when the model clearly failed; do not replace with a chunk dump.
+            if not _archive_hits_relevant(message, chunks):
+                yield from self._iter_converse_answer(
+                    message,
+                    prior,
+                    session_id,
+                    mode,
+                    status="Archive match was weak — answering from general knowledge…",
+                )
+                return
         sources = [_citation_payload(s) for s in chunks_to_citations(chunks)]
         if tools.sources:
             sources = sources + [_citation_payload(s) for s in tools.sources]

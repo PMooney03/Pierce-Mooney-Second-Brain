@@ -56,6 +56,21 @@ export type LearnedEvent = {
   message: string
 }
 
+/** Flatten stream/session payloads so objects never render as [object Object]. */
+export function asChatText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value == null) return ''
+  if (Array.isArray(value)) return value.map(asChatText).filter(Boolean).join('\n')
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>
+    if (typeof o.content === 'string') return o.content
+    if (typeof o.text === 'string') return o.text
+    if (typeof o.answer === 'string') return o.answer
+    return ''
+  }
+  return String(value)
+}
+
 export type ChatStreamHandlers = {
   onStatus?: (message: string, node?: string) => void
   onFile?: (source: Source, node?: string) => void
@@ -130,14 +145,14 @@ export async function chatStream(
         handlers.onTrace?.(event)
       }
       if (kind === 'status') {
-        handlers.onStatus?.(String(event.message || ''), event.node as string | undefined)
+        handlers.onStatus?.(asChatText(event.message), event.node as string | undefined)
       } else if (kind === 'token') {
-        handlers.onToken?.(String(event.text || ''), Boolean(event.replace))
+        handlers.onToken?.(asChatText(event.text), Boolean(event.replace))
       } else if (kind === 'file' && event.source) {
         handlers.onFile?.(event.source as Source, event.node as string | undefined)
       } else if (kind === 'answer') {
         finalAnswer = {
-          answer: String(event.answer || ''),
+          answer: asChatText(event.answer),
           sources: (event.sources as Source[]) || [],
           mode: String(event.mode || mode),
           model: String(event.model || ''),
